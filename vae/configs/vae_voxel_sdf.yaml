@@ -1,0 +1,30 @@
+data_params:
+  train_data_pkl_path: 'train_valid_data_list.pkl'
+  val_data_pkl_path: 'val_valid_data_list.pkl'
+  data_key: 'voxel_sdf'
+  train_batch_size: 32
+  val_batch_size: 32
+  num_workers: 32
+
+trainer_params:
+  manual_seed: 42
+  accelerator: 'gpu'
+  max_epochs: 100
+  precision: 32
+  num_nodes: 1
+  devices: 4
+  strategy: 'ddp'
+  log_every_n_steps: 1
+  limit_val_batches: 3
+  val_check_interval: 0.5
+  num_sanity_val_steps: 1
+  detect_anomaly: False
+  default_root_dir: 'vae/logs/vae_voxel_sdf'
+
+exp_params:
+  lr: 0.0001
+  weight_decay: 0.0
+  lr_decay: 0.95
+  kld_weight: 0.00025
+
+  
