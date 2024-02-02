@@ -17,7 +17,7 @@ class VAEExperiment(pl.LightningModule):
         logvar = results[2]
 
         loss_dict = self.vae_model.loss_function(
-            recon, batch, mu, logvar, M_N=self.config['kld_weight'])
+            recon, batch, mu, logvar, **self.config)
         loss = loss_dict['loss']
         recon_loss = loss_dict['Reconstruction_Loss']
         kld = loss_dict['KLD']
@@ -32,7 +32,7 @@ class VAEExperiment(pl.LightningModule):
         mu = results[1]
         logvar = results[2]
 
-        loss_dict = self.vae_model.loss_function(recon, batch, mu, logvar, M_N=1.0)
+        loss_dict = self.vae_model.loss_function(recon, batch, mu, logvar, **self.config)
         loss = loss_dict['loss']
         self.log('val_loss', loss, rank_zero_only=True, prog_bar=True)
         if self.trainer.is_global_zero:

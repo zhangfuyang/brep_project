@@ -5,59 +5,72 @@ import torch.nn.functional as F
 
 
 class VAE3D(nn.Module):
-    def __init__(self, n_channels, trilinear=True):
-        """A simple 3D Unet, adapted from a 2D Unet from https://github.com/milesial/Pytorch-UNet/tree/master/unet
-        Arguments:
-          n_channels = number of input channels; 3 for RGB, 1 for grayscale input
-          trilinear = use trilinear interpolation to upsample; if false, 3D convtranspose layers will be used instead
-        """
+    def __init__(self, n_channels, with_conv=True, num_res_blocks=2, ch=64,
+                 channels=(2, 4, 8, 8), voxel_dim=64):
         super(VAE3D, self).__init__()
-        _channels = (32, 64, 128, 256, 512, 512)
-        self.latent_dim = 1024
+        _ch = ch
+        _channels = tuple(channels)
         self.n_channels = n_channels
+        self.ch = ch
         self.channels = [int(c) for c in _channels]
-        self.trilinear = trilinear
-        self.convtype = nn.Conv3d
+        self.with_conv = with_conv
+        self.num_res_blocks = num_res_blocks
+        self.voxel_dim = voxel_dim
 
-        self.encoder = nn.Sequential(
-            DoubleConv(n_channels, self.channels[0], conv_type=self.convtype),
-            Down(self.channels[0], self.channels[1], conv_type=self.convtype),
-            Down(self.channels[1], self.channels[2], conv_type=self.convtype),
-            Down(self.channels[2], self.channels[3], conv_type=self.convtype),
-            Down(self.channels[3], self.channels[4], conv_type=self.convtype),
-            Down(self.channels[4], self.channels[5], conv_type=self.convtype),
-        )
+        self.conv_in = nn.Conv3d(n_channels, _ch, 
+                                kernel_size=3, stride=1, padding=1)
 
-        self.fc_mu = nn.Linear(self.channels[5]*8, self.latent_dim)
-        self.fc_logvar = nn.Linear(self.channels[5]*8, self.latent_dim)
+        self.encoder = nn.ModuleList()
+        in_channels = (1, ) + _channels
+        for i in range(len(_channels)):
+            if i != len(_channels)-1:
+                self.encoder.append(
+                    Down(in_channels[i]*_ch, in_channels[i+1]*_ch, 
+                         num_res_blocks=self.num_res_blocks, with_conv=self.with_conv)
+                )
+            else:
+                self.encoder.append(
+                    Mid(in_channels[i]*_ch, in_channels[i+1]*_ch, 
+                        num_res_blocks=self.num_res_blocks)
+                )
+            
+        self.fc_mu = nn.Conv3d(in_channels[-1]*_ch, in_channels[-1]*_ch, 1)
+        self.fc_logvar = nn.Conv3d(in_channels[-1]*_ch, in_channels[-1]*_ch, 1)
 
-        self.decoder_input = nn.Linear(self.latent_dim, self.channels[5]*8)
-        self.decoder = nn.Sequential(
-            Up(self.channels[5], self.channels[4], trilinear),
-            Up(self.channels[4], self.channels[3], trilinear),
-            Up(self.channels[3], self.channels[2], trilinear),
-            Up(self.channels[2], self.channels[1], trilinear),
-            Up(self.channels[1], self.channels[0], trilinear)
-        )
+        self.decoder_input = nn.Conv3d(in_channels[-1]*_ch, in_channels[-1]*_ch, 1)
+        self.decoder = nn.ModuleList()
+        for i in range(len(_channels), 0, -1):
+            if i == len(_channels):
+                self.decoder.append(
+                    Mid(in_channels[i]*_ch, in_channels[i-1]*_ch, 
+                        num_res_blocks=self.num_res_blocks)
+                )
+            else:
+                self.decoder.append(
+                    Up(in_channels[i]*_ch, in_channels[i-1]*_ch, 
+                       num_res_blocks=self.num_res_blocks, with_conv=self.with_conv)
+                )
+
         self.final_layer = nn.Sequential(
-            nn.Conv3d(self.channels[0], n_channels, kernel_size=1),
+            nn.Conv3d(in_channels[0]*_ch, n_channels, kernel_size=1),
             nn.Tanh()
         )
 
     def encode(self, x):
-        result = self.encoder(x)
-        result = torch.flatten(result, start_dim=1)
+        x = self.conv_in(x)
+        for model in self.encoder:
+            x = model(x)
 
-        mu = self.fc_mu(result)
-        logvar = self.fc_logvar(result)
+        mu = self.fc_mu(x)
+        logvar = self.fc_logvar(x)
 
         return mu, logvar
     
     def decode(self, z):
-        result = self.decoder_input(z)
-        result = result.view(-1, self.channels[4], 2, 2, 2)
-        result = self.decoder(result)
-        result = self.final_layer(result)
+        z = self.decoder_input(z)
+        for model in self.decoder:
+            z = model(z)
+        result = self.final_layer(z)
         return result
     
     def reparameterize(self, mu, logvar):
@@ -71,9 +84,24 @@ class VAE3D(nn.Module):
         return self.decode(z), mu, logvar
     
     def loss_function(self, recon_x, x, mu, logvar, **kwargs):
-        kld_weight = kwargs['M_N']
-        recons_loss = F.mse_loss(recon_x, x)
+        kld_weight = kwargs['kld_weight']
+        if kwargs['recon_loss_weight']:
+            if kwargs['recon_loss_type'] == 'l1':
+                loss = recon_x - x
+                weight = 1 - torch.abs(x)
+                recons_loss = torch.mean(weight * torch.abs(loss)) * 3
+            else:
+                loss = recon_x - x
+                weight = 1 - torch.abs(x)
+                recons_loss = torch.mean(weight * (loss ** 2)) * 3
+        else:
+            if kwargs['recon_loss_type'] == 'l1':
+                recons_loss = F.l1_loss(recon_x, x)
+            else:
+                recons_loss = F.mse_loss(recon_x, x)
 
+        logvar = logvar.reshape(logvar.shape[0], -1)
+        mu = mu.reshape(mu.shape[0], -1)
         kld_loss = torch.mean(-0.5 * torch.sum(1 + logvar - mu ** 2 - logvar.exp(), dim = 1), dim = 0)
 
         loss = recons_loss + kld_weight * kld_loss
@@ -81,108 +109,111 @@ class VAE3D(nn.Module):
         return {'loss': loss, 'Reconstruction_Loss':recons_loss.detach(), 'KLD':-kld_loss.detach()}
     
     def sample(self, num_samples, device):
-        z = torch.randn(num_samples, self.latent_dim).to(device)
+        latent_size = self.voxel_dim // (2**(len(self.channels)-1))
+        z = torch.randn(num_samples, 
+                        self.channels[-1]*self.ch, 
+                        latent_size, latent_size, latent_size).to(device)
         return self.decode(z)
     
-
-class DoubleConv(nn.Module):
-    """(convolution => [BN] => ReLU) * 2"""
-
-    def __init__(self, in_channels, out_channels, conv_type=nn.Conv3d, mid_channels=None,
-                 no_end_act=False):
+class Mid(nn.Module):
+    def __init__(self, in_channels, out_channels, num_res_blocks=2):
         super().__init__()
-        if not mid_channels:
-            mid_channels = out_channels
-        if no_end_act:
-            self.double_conv = nn.Sequential(
-                conv_type(in_channels, mid_channels, kernel_size=3, padding=1),
-                nn.BatchNorm3d(mid_channels),
-                nn.LeakyReLU(negative_slope=0.1),
-                conv_type(mid_channels, out_channels, kernel_size=3, padding=1),
-            )
-        else:
-            self.double_conv = nn.Sequential(
-                conv_type(in_channels, mid_channels, kernel_size=3, padding=1),
-                nn.BatchNorm3d(mid_channels),
-                nn.LeakyReLU(negative_slope=0.1),
-                conv_type(mid_channels, out_channels, kernel_size=3, padding=1),
-                nn.BatchNorm3d(out_channels),
-                nn.LeakyReLU(negative_slope=0.1),
-            )
-
+        self.res_blocks = nn.ModuleList()
+        for i in range(num_res_blocks):
+            self.res_blocks.append(ResNetBlock(in_channels, out_channels))
+            in_channels = out_channels
+        
     def forward(self, x):
-        return self.double_conv(x)
-
+        for model in self.res_blocks:
+            x = model(x)
+        return x
 
 class Down(nn.Module):
-    """Downscaling with maxpool then double conv"""
-
-    def __init__(self, in_channels, out_channels, conv_type=nn.Conv3d):
+    def __init__(self, in_channels, out_channels, num_res_blocks=2, with_conv=True):
         super().__init__()
-        self.maxpool_conv = nn.Sequential(
-            nn.MaxPool3d(2),
-            ResNetBlock(in_channels, out_channels),
-        )
+        self.res_blocks = nn.ModuleList()
+        for i in range(num_res_blocks):
+            self.res_blocks.append(ResNetBlock(in_channels, out_channels))
+            in_channels = out_channels
+        
+        self.with_conv = with_conv
+        if with_conv:
+            self.downsample = nn.Conv3d(in_channels, out_channels, 
+                                    kernel_size=3, stride=2, padding=0)
+        else:
+            self.downsample = nn.AvgPool3d(2)
 
     def forward(self, x):
-        return self.maxpool_conv(x)
-
+        for model in self.res_blocks:
+            x = model(x)
+        if self.with_conv:
+            pad = (0,1,0,1,0,1)
+            x = F.pad(x, pad, "constant", 0)
+        return self.downsample(x)
 
 class Up(nn.Module):
-    """Upscaling then double conv"""
-
-    def __init__(self, in_channels, out_channels, trilinear=True):
+    def __init__(self, in_channels, out_channels, num_res_blocks=2, with_conv=True):
         super().__init__()
-
-        # if trilinear, use the normal convolutions to reduce the number of channels
-        if trilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
-            self.conv = ResNetBlock(in_channels, out_channels, mid_channels=in_channels // 2)
+        self.res_blocks = nn.ModuleList()
+        for i in range(num_res_blocks):
+            self.res_blocks.append(ResNetBlock(in_channels, out_channels))
+            in_channels = out_channels
+        
+        self.with_conv = with_conv
+        if with_conv:
+            self.upsample = nn.ConvTranspose3d(in_channels, in_channels, kernel_size=2, stride=2)
         else:
-            self.up = nn.ConvTranspose3d(in_channels, in_channels, kernel_size=2, stride=2)
-            self.conv = ResNetBlock(in_channels, out_channels)
+            self.upsample = nn.Upsample(scale_factor=2, mode='trilinear', align_corners=True)
 
     def forward(self, x):
-        x = self.up(x)
-        return self.conv(x)
+        for model in self.res_blocks:
+            x = model(x)
+        return self.upsample(x)
 
-
-class OutConv(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(OutConv, self).__init__()
-        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size=1)
-
-    def forward(self, x):
-        return self.conv(x)
-
+def Normalize(in_channels, num_groups=32):
+    return torch.nn.BatchNorm3d(num_features=in_channels)
+    #return torch.nn.GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True)
 
 class ResNetBlock(nn.Module):
-    def __init__(self, in_channels, out_channels):
-        super(ResNetBlock, self).__init__()
+    def __init__(self, in_channels, out_channels=None):
+        super().__init__()
+        self.in_channels = in_channels
+        out_channels = in_channels if out_channels is None else out_channels
+        self.out_channels = out_channels
 
-        if in_channels != out_channels:
-            # conv1x1 for increasing the number of channels
-            self.conv1 = nn.Conv3d(in_channels, out_channels, 1)
-        else:
-            self.conv1 = nn.Identity()
-
-        # residual block
-        self.conv2 = DoubleConv(out_channels, out_channels, nn.Conv3d)
-        self.conv3 = DoubleConv(out_channels, out_channels, nn.Conv3d)
-
-        # create non-linearity separately
-        self.non_linearity = nn.LeakyReLU(negative_slope=0.1)
+        self.norm1 = Normalize(in_channels)
+        self.conv1 = torch.nn.Conv3d(in_channels,
+                                     out_channels,
+                                     kernel_size=3,
+                                     stride=1,
+                                     padding=1)
+        self.norm2 = Normalize(out_channels)
+        self.conv2 = torch.nn.Conv3d(out_channels,
+                                     out_channels,
+                                     kernel_size=3,
+                                     stride=1,
+                                     padding=1)
+        if self.in_channels != self.out_channels:
+            self.conv_shortcut = torch.nn.Conv3d(in_channels,
+                                                 out_channels,
+                                                 kernel_size=3,
+                                                 stride=1,
+                                                 padding=1)
+        
+        self.nonlinearity = nn.SiLU()
 
     def forward(self, x):
-        # apply first convolution to bring the number of channels to out_channels
-        residual = self.conv1(x)
+        h = x
+        h = self.norm1(h)
+        h = self.nonlinearity(h)
+        h = self.conv1(h)
 
-        # residual block
-        out = self.conv2(residual)
-        out = self.conv3(out)
+        h = self.norm2(h)
+        h = self.nonlinearity(h)
+        h = self.conv2(h)
 
-        out += residual
-        out = self.non_linearity(out)
+        if self.in_channels != self.out_channels:
+            x = self.conv_shortcut(x)
 
-        return out
+        return x+h
 
