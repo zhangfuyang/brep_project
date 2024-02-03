@@ -13,7 +13,7 @@ class VoxelDataset(torch.utils.data.Dataset):
             self.data_list = pickle.load(open(data_config['val_data_pkl_path'], 'rb'))
     
     def __len__(self):
-        return len(self.data_list)
+        return len(self.data_list) 
     
     def __getitem__(self, idx):
         pkl_path = self.data_list[idx]
@@ -28,16 +28,8 @@ class VoxelDataset(torch.utils.data.Dataset):
             voxel = voxel[..., random_idx]
         
         x = torch.from_numpy(voxel).float()
-        x = torch.clamp(x, -0.3, 0.3)
-        x = x * 3 # [-0.3, 0.3] -> [-0.9, 0.9]
+        x = torch.clamp(x, -0.95, 0.95)
+        #x = torch.clamp(x, -0.3, 0.3)
+        #x = x * 3 # [-0.3, 0.3] -> [-0.9, 0.9]
         x = x[None] # 1, N,N,N
         return x
-
-if __name__ == "__main__":
-    import yaml
-    with open('vqvae/configs/vqvae_voxel_sdf.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-    
-    train_dataset = VoxelDataset(config['data_params'], 'val')
-    for data in train_dataset:
-        print(data.shape)
