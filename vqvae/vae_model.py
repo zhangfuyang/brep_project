@@ -119,9 +119,9 @@ class VQVAE3D(nn.Module):
     
     def loss_function(self, recon_x, x, vq_loss, **kwargs):
         #recons_loss = F.mse_loss(recon_x, x)
-        if kwargs['loss_type'] == 'l1':
+        if kwargs['recon_loss_type'] == 'l1':
             diff = torch.abs(recon_x - x)
-        elif kwargs['loss_type'] == 'l2':
+        elif kwargs['recon_loss_type'] == 'l2':
             diff = (recon_x - x)**2
         weight = 1 - torch.abs(x)
         recons_loss = torch.mean(diff * weight)

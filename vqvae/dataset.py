@@ -33,3 +33,14 @@ class VoxelDataset(torch.utils.data.Dataset):
         #x = x * 3 # [-0.3, 0.3] -> [-0.9, 0.9]
         x = x[None] # 1, N,N,N
         return x
+
+
+if __name__ == "__main__":
+    import yaml
+    with open('vqvae/configs/vqvae_voxel_face_dist.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    
+    train_dataset = VoxelDataset(config['data_params'], 'val')
+    for data in train_dataset:
+        print(data.shape)
+

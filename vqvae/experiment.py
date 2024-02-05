@@ -2,6 +2,8 @@ import os
 import torch
 import pytorch_lightning as pl
 import mcubes
+import numpy as np
+import trimesh
 
 class VAEExperiment(pl.LightningModule):
     def __init__(self, config, vae_model):
@@ -65,8 +67,18 @@ class VAEExperiment(pl.LightningModule):
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         voxel = voxel.cpu().numpy()
         #voxel = voxel / 3
-        vertices, triangles = mcubes.marching_cubes(voxel, 0)
-        mcubes.export_obj(vertices, triangles, filename)
+        phase = self.config['phase']
+        if phase == 'sdf':
+            vertices, triangles = mcubes.marching_cubes(voxel, 0)
+            mcubes.export_obj(vertices, triangles, filename)
+        elif phase == 'face':
+            points = np.where(voxel < 0.02)
+            points = np.array(points).T
+            pointcloud = trimesh.points.PointCloud(points)
+            # save
+            pointcloud.export(filename)
+        else:
+            raise ValueError(f'phase {phase} not supported')
 
 
     def configure_optimizers(self):

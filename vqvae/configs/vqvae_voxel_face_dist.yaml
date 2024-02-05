@@ -1,7 +1,7 @@
 data_params:
   train_data_pkl_path: 'train_valid_data_list.pkl'
   val_data_pkl_path: 'val_valid_data_list.pkl'
-  data_key: 'voxel_sdf'
+  data_key: 'face_bounded_distance_field'
   train_batch_size: 32
   val_batch_size: 32
   num_workers: 32
@@ -21,14 +21,14 @@ trainer_params:
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 3
+  devices: 1
   strategy: 'ddp'
   log_every_n_steps: 50
   limit_val_batches: 5
   val_check_interval: 1.0
   num_sanity_val_steps: 1
   detect_anomaly: False
-  default_root_dir: 'vqvae/logs/vqvae_voxel_sdf_full_conv'
+  default_root_dir: 'vqvae/logs/vqvae_face_dist_full_conv'
 
 exp_params:
   lr: 0.0001
@@ -37,6 +37,6 @@ exp_params:
   vq_weight: 0.25
   recon_loss_type: "l2" # l1 or l2
   pretrained_model_path: null #'vqvae/logs/vqvae_voxel_sdf_full_conv/lightning_logs/version_0/checkpoints/last.ckpt'
-  phase: "sdf" # sdf or face
+  phase: "face" # sdf or face
 
   
