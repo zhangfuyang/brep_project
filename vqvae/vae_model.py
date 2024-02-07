@@ -44,6 +44,25 @@ class VectorQuantizer(nn.Module):
         quantized_latents = latents + (quantized_latents - latents).detach()
 
         return quantized_latents.permute(0, 4, 1, 2, 3).contiguous(), vq_loss
+    
+    def get_codebook_indices(self, latents):
+        latents = latents.permute(0, 2, 3, 4, 1).contiguous() # (B, C, H, W, D) -> (B, H, W, D, C)
+        latents_shape = latents.shape
+        assert latents_shape[-1] == self.D
+        flat_latents = latents.view(-1, self.D) # (B*H*W*D, C)
+
+        # compute L2 distance between latents and embedding vectors
+        dist = torch.sum(flat_latents**2, dim=1, keepdim=True) + \
+                torch.sum(self.embedding.weight**2, dim=1) - \
+                2 * torch.matmul(flat_latents, self.embedding.weight.t())
+        
+        # get the encoding that has the min distance
+        encoding_indices = torch.argmin(dist, dim=1).unsqueeze(1) # (B*H*W*D, 1)
+
+        encoding_indices = encoding_indices.view(latents_shape[:-1]+(1,)) # (B, H, W, D, 1)
+
+        return encoding_indices[...,0]
+
 
 
 class VQVAE3D(nn.Module):
@@ -117,6 +136,10 @@ class VQVAE3D(nn.Module):
         quantized_inputs, vq_loss = self.vq_layer(latent, vq_weight)
         return self.decode(quantized_inputs), vq_loss
     
+    def quantize_indices(self, x):
+        latent = self.encode(x)
+        return self.vq_layer.get_codebook_indices(latent)
+
     def loss_function(self, recon_x, x, vq_loss, **kwargs):
         #recons_loss = F.mse_loss(recon_x, x)
         if kwargs['recon_loss_type'] == 'l1':
