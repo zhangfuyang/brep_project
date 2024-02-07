@@ -1,0 +1,31 @@
+data_params:
+  val_data_pkl_path: 'val_valid_data_list.pkl'
+  val_batch_size: 8
+  num_workers: 32
+
+trainer_params:
+  accelerator: 'gpu'
+  max_epochs: 200
+  precision: 32
+  num_nodes: 1
+  devices: 2
+  strategy: 'ddp'
+  log_every_n_steps: 50
+  default_root_dir: 'reconstruction/logs/vq_reconstruction'
+
+exp_params:
+  lr: 0.0001
+  weight_decay: 0.0
+  lr_decay: 0.95
+  recon_loss_type: "l2" # l1 or l2
+  diffusion_steps: 50
+  face_mini_batch: 8
+  face_model: 
+    config: 'vqvae/configs/vqvae_voxel_face_dist.yaml'
+    pretrained_path: null
+  sdf_model: 
+    config: 'vqvae/configs/vqvae_voxel_sdf.yaml'
+    pretrained_path: null
+  pretrained_model_path: null #'vqvae/logs/vqvae_voxel_sdf_full_conv/lightning_logs/version_0/checkpoints/last.ckpt'
+
+

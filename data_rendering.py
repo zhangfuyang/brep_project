@@ -6,10 +6,10 @@ import os
 import trimesh
 from scipy.interpolate import RegularGridInterpolator
 
-face_dist_threshold = 0.04
+face_dist_threshold = 0.02
 grid_reso = 64
 
-data_path = glob.glob('Data/deepcad_subset/train/*/*.pkl')[100]
+data_path = glob.glob('Data/deepcad_subset/val/*/*.pkl')[1]
 
 save_root = 'debug_train_2'
 os.makedirs(save_root, exist_ok=True)
@@ -41,18 +41,25 @@ corner_points = []
 per_edge_points = {}
 for vertice_idx in range(len(vertices)):
     face_distances = interpolated_f_bdf[vertice_idx]
-    flag = face_distances < face_dist_threshold
-    if flag.sum() == 1:
+    sort_idx = np.argsort(face_distances)
+    belonged_face_idx = [sort_idx[0]]
+    while True:
+        next_idx = sort_idx[len(belonged_face_idx)]
+        if face_distances[next_idx] - face_distances[belonged_face_idx[-1]] < face_dist_threshold:
+            belonged_face_idx.append(next_idx)
+        else:
+            break
+    if len(belonged_face_idx) == 1:
         boundary_points.append(vertices[vertice_idx])
-    elif flag.sum() == 2:
+    elif len(belonged_face_idx) == 2:
         edge_points.append(vertices[vertice_idx])
-        face_ids = np.where(flag)[0]
+        face_ids = [belonged_face_idx[0], belonged_face_idx[1]]
         face_ids.sort()
         if (face_ids[0], face_ids[1]) in per_edge_points:
             per_edge_points[(face_ids[0], face_ids[1])].append(vertices[vertice_idx])
         else:
             per_edge_points[(face_ids[0], face_ids[1])] = [vertices[vertice_idx]]
-    elif flag.sum() >= 3:
+    elif len(belonged_face_idx) >= 3:
         corner_points.append(vertices[vertice_idx])
 
 if len(boundary_points) > 0:
