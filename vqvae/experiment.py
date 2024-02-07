@@ -26,7 +26,7 @@ class VAEExperiment(pl.LightningModule):
         self.log('train_loss', loss, rank_zero_only=True, prog_bar=True)
         if self.trainer.is_global_zero and batch_idx == 0:
             if batch_idx == 0:
-                for i in range(4):
+                for i in range(min(4, len(batch))):
                     save_name = os.path.join(self.logger.log_dir, 'images', 
                                              f'{self.global_step}_train_gt_{i}.obj')
                     self.render_mesh(batch[i][0], save_name)
@@ -46,7 +46,7 @@ class VAEExperiment(pl.LightningModule):
         self.log('val_loss', loss, rank_zero_only=True, prog_bar=True)
         if self.trainer.is_global_zero:
             if batch_idx == 0:
-                for i in range(4):
+                for i in range(min(4, len(batch))):
                     save_name = os.path.join(self.logger.log_dir, 'images', 
                                              f'{self.global_step}_gt_{i}.obj')
                     self.render_mesh(batch[i][0], save_name)

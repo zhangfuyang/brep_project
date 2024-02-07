@@ -67,7 +67,7 @@ class VectorQuantizer(nn.Module):
 
 class VQVAE3D(nn.Module):
     def __init__(self, n_channels, with_conv=True, num_res_blocks=2, ch=64,
-                 channels=(2, 4, 8, 8), voxel_dim=64, **kwargs):
+                 channels=(2, 4, 8, 8), voxel_size=64, **kwargs):
         super(VQVAE3D, self).__init__()
         _ch = ch
         _channels = tuple(channels)
@@ -76,10 +76,11 @@ class VQVAE3D(nn.Module):
         self.channels = [int(c) for c in _channels]
         self.with_conv = with_conv
         self.num_res_blocks = num_res_blocks
-        self.voxel_dim = voxel_dim
+        self.voxel_size = voxel_size
         self.codebook_size = kwargs['codebook_size']
+        self.codebook_dim = kwargs['codebook_dim']
 
-        self.vq_layer = VectorQuantizer(self.codebook_size, _ch*self.channels[-1])
+        self.vq_layer = VectorQuantizer(self.codebook_size, self.codebook_dim)
 
         self.conv_in = nn.Conv3d(n_channels, _ch, 
                                 kernel_size=3, stride=1, padding=1)
@@ -97,8 +98,11 @@ class VQVAE3D(nn.Module):
                     Mid(in_channels[i]*_ch, in_channels[i+1]*_ch, 
                         num_res_blocks=self.num_res_blocks)
                 )
+        self.encoder.append(
+            Mid(in_channels[-1]*_ch, self.codebook_dim, num_res_blocks=self.num_res_blocks)
+        )
             
-        self.decoder_input = nn.Conv3d(in_channels[-1]*_ch, in_channels[-1]*_ch, 1)
+        self.decoder_input = Mid(self.codebook_dim, in_channels[-1]*_ch, self.num_res_blocks)
         self.decoder = nn.ModuleList()
         for i in range(len(_channels), 0, -1):
             if i == len(_channels):

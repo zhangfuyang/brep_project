@@ -11,8 +11,9 @@ model_params:
   with_conv: True
   num_res_blocks: 2
   channels: [1,2,4,4] # downsample 3 time
-  voxel_dim: 64
-  ch: 64
+  voxel_size: 64
+  ch: 32
+  codebook_dim: 8
   codebook_size: 8192
 
 trainer_params:
@@ -21,14 +22,14 @@ trainer_params:
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 3
+  devices: 2
   strategy: 'ddp'
   log_every_n_steps: 50
   limit_val_batches: 5
   val_check_interval: 1.0
   num_sanity_val_steps: 1
   detect_anomaly: False
-  default_root_dir: 'vqvae/logs/vqvae_voxel_sdf_full_conv'
+  default_root_dir: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8'
 
 exp_params:
   lr: 0.0001

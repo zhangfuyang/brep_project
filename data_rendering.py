@@ -9,12 +9,20 @@ from scipy.interpolate import RegularGridInterpolator
 face_dist_threshold = 0.02
 grid_reso = 64
 
-data_path = glob.glob('Data/deepcad_subset/val/*/*.pkl')[1]
-data_path = glob.glob('reconstruction/logs/vq_reconstruction/lightning_logs/version_1/pkl/*.pkl')[-1]
+data_path_list = glob.glob('reconstruction/logs/vq_reconstruction/lightning_logs/version_1/pkl/*.pkl')
 
-save_root = 'debug_train_2'
+new_data_path = []
+for f in data_path_list:
+    n = f.split('/')[-1].split('_')[0]
+    if os.path.exists(f'Data/deepcad_subset/val/{n}'):
+        new_data_path.append(f)
+
+data_path = new_data_path[2]
+save_root = data_path.split('/')[-1].split('.')[0]
 os.makedirs(save_root, exist_ok=True)
-#os.system(f'cp -r {"/".join(data_path.split("/")[:-1])} {save_root}/debug_original')
+
+brep_path = os.path.join('Data/deepcad_subset/val', save_root.split('_')[0])
+os.system(f'cp -r {brep_path} {save_root}/debug_original')
 
 with open(data_path, 'rb') as f:
     data = pickle.load(f)
