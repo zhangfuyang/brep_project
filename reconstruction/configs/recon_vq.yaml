@@ -1,6 +1,6 @@
 data_params:
   val_data_pkl_path: 'val_valid_data_list.pkl'
-  val_batch_size: 8
+  val_batch_size: 64
   num_workers: 32
 
 trainer_params:
@@ -8,7 +8,7 @@ trainer_params:
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 2
+  devices: 3
   strategy: 'ddp'
   log_every_n_steps: 50
   default_root_dir: 'reconstruction/logs/vq_reconstruction'
@@ -19,13 +19,12 @@ exp_params:
   lr_decay: 0.95
   recon_loss_type: "l2" # l1 or l2
   diffusion_steps: 50
-  face_mini_batch: 8
+  face_mini_batch: 64
   face_model: 
     config: 'vqvae/configs/vqvae_voxel_face_dist.yaml'
-    pretrained_path: null
+    pretrained_path: 'vqvae/logs/vqvae_face_dist_full_conv/lightning_logs/version_1/checkpoints/last-model-epoch=119.ckpt'
   sdf_model: 
     config: 'vqvae/configs/vqvae_voxel_sdf.yaml'
-    pretrained_path: null
-  pretrained_model_path: null #'vqvae/logs/vqvae_voxel_sdf_full_conv/lightning_logs/version_0/checkpoints/last.ckpt'
+    pretrained_path: 'vqvae/logs/vqvae_voxel_sdf_full_conv/lightning_logs/version_1/checkpoints/last-model-epoch=121.ckpt'
 
 

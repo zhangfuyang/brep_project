@@ -10,10 +10,11 @@ face_dist_threshold = 0.02
 grid_reso = 64
 
 data_path = glob.glob('Data/deepcad_subset/val/*/*.pkl')[1]
+data_path = glob.glob('reconstruction/logs/vq_reconstruction/lightning_logs/version_1/pkl/*.pkl')[-1]
 
 save_root = 'debug_train_2'
 os.makedirs(save_root, exist_ok=True)
-os.system(f'cp -r {"/".join(data_path.split("/")[:-1])} {save_root}/debug_original')
+#os.system(f'cp -r {"/".join(data_path.split("/")[:-1])} {save_root}/debug_original')
 
 with open(data_path, 'rb') as f:
     data = pickle.load(f)

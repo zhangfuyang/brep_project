@@ -63,7 +63,7 @@ class ReconExperiment(pl.LightningModule):
             save_path = os.path.join(self.logger.log_dir, 'pkl', f'{filename}.pkl')
             os.makedirs(os.path.dirname(save_path), exist_ok=True)
             data = {}
-            data['sdf_voxel'] = sdf_recon[i].cpu().numpy()[:,0] # N, N, N
+            data['voxel_sdf'] = sdf_recon[i].cpu().numpy()[0] # N, N, N
             num = face_nums[i].item()
             face_result = face_recon[face_num_start:face_num_start+num][:,0] # M, N, N, N
             face_result = face_result.permute(1, 2, 3, 0) # N, N, N, M
