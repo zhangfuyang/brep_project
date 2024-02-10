@@ -1,5 +1,4 @@
 import os
-os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
 import torch
 import yaml
 import argparse
