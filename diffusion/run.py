@@ -40,7 +40,7 @@ if config['exp_params']['pretrained_model_path'] is not None:
         torch.load(config['exp_params']['pretrained_model_path'], 
                    map_location='cpu')['state_dict'], strict=True)
 
-train_dataset = VoxelDataset(config['data_params'], 'train')
+train_dataset = VoxelDataset(config['data_params'], 'val' if config['exp_params']['debug'] else 'train')
 train_dataloader = torch.utils.data.DataLoader(
     train_dataset, batch_size=config['data_params']['train_batch_size'], 
     shuffle=True, num_workers=config['data_params']['num_workers'])
