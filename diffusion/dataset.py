@@ -33,6 +33,8 @@ class VoxelDataset(torch.utils.data.Dataset):
         face_voxel = torch.from_numpy(face_voxel).float()
         sdf_voxel = torch.clamp(sdf_voxel, -0.95, 0.95)
         face_voxel = torch.clamp(face_voxel, -0.95, 0.95)
+        if self.data_config['face_shuffle']:
+            face_voxel = face_voxel[torch.randperm(num_faces)]
 
         # pad face to max number of faces
         max_faces = self.data_config['max_faces']

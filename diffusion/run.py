@@ -1,4 +1,5 @@
 import os
+os.environ["TORCH_DISTRIBUTED_DEBUG"] = "DETAIL"
 import torch
 import yaml
 import argparse
@@ -6,9 +7,10 @@ import pytorch_lightning as pl
 from pytorch_lightning import seed_everything
 from dataset import VoxelDataset
 from experiment import DiffusionExperiment
-from diffusion_model import DiffusionLatent
+from diffusion_model import UNet3DModel
 from utils import load_model
 import sys
+from pytorch_lightning.strategies import DDPStrategy
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vqvae')))
 from vae_model import VQVAE3D
@@ -29,7 +31,7 @@ face_model = load_model(VQVAE3D,
 sdf_model = load_model(VQVAE3D, 
                         config['exp_params']['sdf_model']['config'], 
                         config['exp_params']['sdf_model']['pretrained_path'])
-model = DiffusionLatent(config['model_params'])
+model = UNet3DModel(**config['model_params'])
 experiment = DiffusionExperiment(config['exp_params'], model, face_model, sdf_model)
 # load pretrained model
 if config['exp_params']['pretrained_model_path'] is not None:
@@ -66,7 +68,8 @@ trainer = pl.Trainer(
     num_sanity_val_steps=config['trainer_params']['num_sanity_val_steps'],
     detect_anomaly=config['trainer_params']['detect_anomaly'],
     default_root_dir=config['trainer_params']['default_root_dir'],
-    callbacks=[checkpoint_callback, checkpoint_callback_last])
+    callbacks=[checkpoint_callback, checkpoint_callback_last],
+    )
 
 # cp yaml file
 if trainer.is_global_zero:

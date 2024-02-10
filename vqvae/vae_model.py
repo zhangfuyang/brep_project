@@ -140,6 +140,10 @@ class VQVAE3D(nn.Module):
         quantized_inputs, vq_loss = self.vq_layer(latent, vq_weight)
         return self.decode(quantized_inputs), vq_loss
     
+    def quantize_decode(self, latent):
+        quantized_inputs, _ = self.vq_layer(latent, 0)
+        return self.decode(quantized_inputs)
+
     def quantize_indices(self, x):
         latent = self.encode(x)
         return self.vq_layer.get_codebook_indices(latent)

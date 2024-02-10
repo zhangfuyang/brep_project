@@ -2,8 +2,8 @@ data_params:
   train_data_pkl_path: 'train_valid_data_list.pkl'
   val_data_pkl_path: 'val_valid_data_list.pkl'
   data_key: 'voxel_sdf'
-  train_batch_size: 32
-  val_batch_size: 32
+  train_batch_size: 64
+  val_batch_size: 64
   num_workers: 32
 
 model_params:

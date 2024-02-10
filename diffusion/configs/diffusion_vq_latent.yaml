@@ -1,21 +1,29 @@
 data_params:
   train_data_pkl_path: 'train_valid_data_list.pkl'
   val_data_pkl_path: 'val_valid_data_list.pkl'
-  train_batch_size: 4
-  val_batch_size: 2
+  train_batch_size: 32
+  val_batch_size: 32
   num_workers: 32
   max_faces: 10
+  face_shuffle: True
 
 model_params:
-  n_channels: 11 # max_faces + 1
+  in_channels: 88 # (max_faces + 1) * dim
+  out_channels: 88
+  block_types: ["EncodeBlock3D", "EncodeAttnBlock3D", "EncodeBlock3D", "EncodeAttnBlock3D"]
+  block_channels: [256, 512, 1024, 1024]
+  layers_per_block: 2
+  attention_head_dim: 8
+  norm_num_groups: 32
+  norm_eps: 1.e-5
 
 trainer_params:
   manual_seed: 44
-  accelerator: 'cpu'
+  accelerator: 'gpu'
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 1
+  devices: 2
   strategy: 'ddp'
   log_every_n_steps: 50
   limit_val_batches: 5
@@ -29,13 +37,17 @@ exp_params:
   weight_decay: 0.0
   lr_decay: 0.95
   recon_loss_type: "l2" # l1 or l2
-  diffusion_steps: 50
-  face_model: 
-    config: 'vqvae/configs/vqvae_voxel_face_dist.yaml'
-    pretrained_path: null
+  diffusion_steps: 25
+  face_model:
+    #config: 'vqvae/configs/vqvae_voxel_face_dist.yaml' 
+    config: 'vqvae/logs/vqvae_face_dist_codebook_dim_8/lightning_logs/version_1/config.yaml'
+    pretrained_path: 'vqvae/logs/vqvae_face_dist_codebook_dim_8/lightning_logs/version_1/checkpoints/last-model-epoch=74.ckpt'
+    #pretrained_path: null
   sdf_model: 
-    config: 'vqvae/configs/vqvae_voxel_sdf.yaml'
-    pretrained_path: null
+    #config: 'vqvae/configs/vqvae_voxel_sdf.yaml'
+    config: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8/lightning_logs/version_1/config.yaml'
+    pretrained_path: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8/lightning_logs/version_1/checkpoints/last-model-epoch=74.ckpt'
+    #pretrained_path: null
   pretrained_model_path: null #'vqvae/logs/vqvae_voxel_sdf_full_conv/lightning_logs/version_0/checkpoints/last.ckpt'
 
 
