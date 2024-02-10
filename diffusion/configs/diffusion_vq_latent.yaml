@@ -6,6 +6,7 @@ data_params:
   num_workers: 32
   max_faces: 10
   face_shuffle: True
+  debug: False
 
 model_params:
   in_channels: 88 # (max_faces + 1) * dim

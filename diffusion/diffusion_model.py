@@ -2,7 +2,6 @@
 import torch.nn as nn
 import torch
 import math
-from diffusers import UNet3DConditionModel, UNet2DModel
 from diffusers.models.attention_processor import Attention
 
 ACTIVATION_FUNCTIONS = {
