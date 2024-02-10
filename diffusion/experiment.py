@@ -62,7 +62,7 @@ class DiffusionExperiment(pl.LightningModule):
         noise_z = self.scheduler.add_noise(z, noise, t)
         noise_pred = self.diffusion_model(noise_z, t)
         sd_loss = torch.nn.functional.mse_loss(noise_pred, noise)
-        self.log('loss', sd_loss, rank_zero_only=True, prog_bar=True)
+        self.log('train_loss', sd_loss, rank_zero_only=True, prog_bar=True)
         if self.trainer.is_global_zero and batch_idx == 0:
             if batch_idx == 0:
                 for i in range(min(4, z.shape[0])):

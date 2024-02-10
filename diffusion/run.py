@@ -51,7 +51,7 @@ val_dataloader = torch.utils.data.DataLoader(
     shuffle=True, num_workers=config['data_params']['num_workers'])
 
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    save_top_k=2, monitor='val_loss', mode='min', 
+    save_top_k=2, monitor='train_loss', mode='min', 
     save_last=True, filename='{epoch}-loss={train_loss:.4f}')
 
 checkpoint_callback_last = pl.callbacks.ModelCheckpoint(
