@@ -27,10 +27,12 @@ seed_everything(config['trainer_params']['manual_seed'], True)
 
 face_model = load_model(VQVAE3D, 
                         config['exp_params']['face_model']['config'], 
-                        config['exp_params']['face_model']['pretrained_path'])
+                        config['exp_params']['face_model']['pretrained_path'],
+                        exclude_prefix='vae_model.')
 sdf_model = load_model(VQVAE3D, 
                         config['exp_params']['sdf_model']['config'], 
-                        config['exp_params']['sdf_model']['pretrained_path'])
+                        config['exp_params']['sdf_model']['pretrained_path'],
+                        exclude_prefix='vae_model.')
 model = UNet3DModel(**config['model_params'])
 experiment = DiffusionExperiment(config['exp_params'], model, face_model, sdf_model)
 # load pretrained model
