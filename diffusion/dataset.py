@@ -17,7 +17,7 @@ class VoxelDataset(torch.utils.data.Dataset):
     
     def __getitem__(self, idx):
         if self.data_config['debug']:
-            idx = idx % 5
+            idx = idx % 1
         pkl_path = self.data_list[idx]
         try:
             with open(pkl_path, 'rb') as f:

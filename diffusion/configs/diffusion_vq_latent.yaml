@@ -6,7 +6,7 @@ data_params:
   num_workers: 32
   max_faces: 10
   face_shuffle: True
-  debug: False
+  debug: True
 
 model_params:
   in_channels: 88 # (max_faces + 1) * dim
@@ -24,7 +24,7 @@ trainer_params:
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 2
+  devices: 1
   strategy: 'ddp'
   log_every_n_steps: 50
   limit_val_batches: 5

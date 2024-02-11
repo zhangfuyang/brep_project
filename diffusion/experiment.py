@@ -70,8 +70,6 @@ class DiffusionExperiment(pl.LightningModule):
                                              f'{self.global_step}_gt_train_')
                     sdf_voxel, face_voxels = self.latent_to_voxel(z[i])
                     self.render_mesh(sdf_voxel, save_name_prefix+f'_{i}_sdf.obj', phase='sdf')
-                    self.render_mesh(face_voxels[0], save_name_prefix+f'_{i}_f0.obj', phase='face')
-                    self.render_mesh(face_voxels[1], save_name_prefix+f'_{i}_f1.obj', phase='face')
 
         return sd_loss
     
