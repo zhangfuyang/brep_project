@@ -9,7 +9,6 @@ from experiment import DiffusionExperiment
 from diffusion_model import UNet3DModel
 from utils import load_model
 import sys
-from pytorch_lightning.strategies import DDPStrategy
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vqvae')))
 from vae_model import VQVAE3D
@@ -40,7 +39,7 @@ if config['exp_params']['pretrained_model_path'] is not None:
         torch.load(config['exp_params']['pretrained_model_path'], 
                    map_location='cpu')['state_dict'], strict=True)
 
-train_dataset = VoxelDataset(config['data_params'], 'val' if config['exp_params']['debug'] else 'train')
+train_dataset = VoxelDataset(config['data_params'], 'val' if config['data_params']['debug'] else 'train')
 train_dataloader = torch.utils.data.DataLoader(
     train_dataset, batch_size=config['data_params']['train_batch_size'], 
     shuffle=True, num_workers=config['data_params']['num_workers'])

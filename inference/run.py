@@ -4,7 +4,7 @@ import yaml
 import argparse
 import pytorch_lightning as pl
 from dataset import VoxelDataset
-from experiment import VAEExperiment
+from experiment import VAEExperiment, VAEExperiment2
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vqvae')))
@@ -32,7 +32,7 @@ for k, v in state_dict.items():
         new_state_dict[k] = v
 model.load_state_dict(new_state_dict, strict=True)
 
-experiment = VAEExperiment(config['exp_params'], model)
+experiment = VAEExperiment2(config['exp_params'], model)
 
 val_dataset = VoxelDataset(config['data_params'], 'val')
 val_dataloader = torch.utils.data.DataLoader(
