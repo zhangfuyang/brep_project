@@ -63,15 +63,12 @@ class DiffusionExperiment(pl.LightningModule):
         noise_pred = self.diffusion_model(noise_z, t)
         sd_loss = torch.nn.functional.mse_loss(noise_pred, noise)
         self.log('train_loss', sd_loss, rank_zero_only=True, prog_bar=True)
-        if self.trainer.is_global_zero and batch_idx == 0:
-            if batch_idx == 0:
-                for i in range(min(4, z.shape[0])):
-                    save_name_prefix = os.path.join(self.logger.log_dir, 'images', 
-                                             f'{self.global_step}_gt_train_')
-                    sdf_voxel, face_voxels = self.latent_to_voxel(z[i])
-                    self.render_mesh(sdf_voxel, save_name_prefix+f'_{i}_sdf.obj', phase='sdf')
 
         return sd_loss
+    
+    def on_train_epoch_end(self) -> None:
+        cur_lr = self.trainer.optimizers[0].param_groups[0]['lr']
+        self.log("lr", cur_lr, prog_bar=True)
     
     def validation_step(self, batch, batch_idx):
         x = self.preprocess(batch)
@@ -87,13 +84,14 @@ class DiffusionExperiment(pl.LightningModule):
 
         if self.trainer.is_global_zero:
             if batch_idx == 0:
-                for i in range(min(4, x.shape[0])):
+                for i in range(min(2, x.shape[0])):
                     save_name_prefix = os.path.join(self.logger.log_dir, 'images', 
                                              f'{self.global_step}_gt')
                     sdf_voxel, face_voxels = self.latent_to_voxel(x[i])
                     self.render_mesh(sdf_voxel, save_name_prefix+f'_{i}_sdf.obj', phase='sdf')
-                    self.render_mesh(face_voxels[0], save_name_prefix+f'_{i}_f0.obj', phase='face')
-                    self.render_mesh(face_voxels[1], save_name_prefix+f'_{i}_f1.obj', phase='face')
+                    if self.global_step == 0:
+                        for face_i in range(face_voxels.shape[0]):
+                            self.render_mesh(face_voxels[face_i], save_name_prefix+f'_{i}_f_{face_i}.obj', phase='face')
 
                     save_name_prefix = os.path.join(self.logger.log_dir, 'images', 
                                              f'{self.global_step}_recon')

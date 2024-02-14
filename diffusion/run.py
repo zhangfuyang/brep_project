@@ -50,13 +50,15 @@ val_dataloader = torch.utils.data.DataLoader(
     shuffle=True, num_workers=config['data_params']['num_workers'])
 
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    save_top_k=2, monitor='train_loss', mode='min', 
+    save_top_k=1, monitor='train_loss', mode='min', 
     save_last=True, filename='{epoch}-loss={train_loss:.4f}')
 
 checkpoint_callback_last = pl.callbacks.ModelCheckpoint(
     filename='last-model-{epoch:02d}',
     save_last=True,
 )
+
+lr_monitor = pl.callbacks.LearningRateMonitor()
 
 trainer = pl.Trainer(
     accelerator=config['trainer_params']['accelerator'], max_epochs=config['trainer_params']['max_epochs'],
@@ -68,7 +70,7 @@ trainer = pl.Trainer(
     num_sanity_val_steps=config['trainer_params']['num_sanity_val_steps'],
     detect_anomaly=config['trainer_params']['detect_anomaly'],
     default_root_dir=config['trainer_params']['default_root_dir'],
-    callbacks=[checkpoint_callback, checkpoint_callback_last],
+    callbacks=[checkpoint_callback, checkpoint_callback_last, lr_monitor],
     )
 
 # cp yaml file

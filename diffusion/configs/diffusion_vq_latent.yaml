@@ -36,9 +36,9 @@ trainer_params:
 exp_params:
   lr: 0.0001
   weight_decay: 0.0
-  lr_decay: 0.95
+  lr_decay: 0.98
   recon_loss_type: "l2" # l1 or l2
-  diffusion_steps: 25
+  diffusion_steps: 50
   face_model:
     #config: 'vqvae/configs/vqvae_voxel_face_dist.yaml' 
     config: 'vqvae/logs/vqvae_face_dist_codebook_dim_8/lightning_logs/version_1/config.yaml'
