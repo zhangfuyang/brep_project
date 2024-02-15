@@ -6,6 +6,7 @@ import numpy as np
 from torch.optim.optimizer import Optimizer
 import trimesh
 from diffusers import DDIMScheduler
+import pickle
 
 class DiffusionExperiment(pl.LightningModule):
     def __init__(self, config, diffusion_model, face_model, sdf_model):
@@ -139,5 +140,34 @@ class DiffusionExperiment(pl.LightningModule):
                                      lr=self.config['lr'], weight_decay=self.config['weight_decay'])
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=self.config['lr_decay'])
         return {'optimizer': optimizer, 'lr_scheduler': scheduler}
-            
+
+    def test_step(self, batch, batch_idx):
+        x = self.preprocess(batch)
+        z = torch.randn_like(x)
+
+        self.scheduler.set_timesteps(self.config['diffusion_steps'])
+        timesteps = self.scheduler.timesteps
+
+        for i, t in enumerate(timesteps):
+            timestep = torch.cat([t.unsqueeze(0)]*z.shape[0], 0)
+            noise_pred = self.diffusion_model(z, timestep)
+            z = self.scheduler.step(noise_pred, t, z).prev_sample
+        
+        if self.trainer.is_global_zero:
+            for i in range(x.shape[0]):
+                save_name = os.path.join(self.logger.log_dir, 'test', f'{self.test_idx:04d}.pkl')
+                sdf_voxel, face_voxels = self.latent_to_voxel(z[i])
+                sdf_voxel = sdf_voxel.cpu().numpy()
+                face_voxels = face_voxels.cpu().numpy()
+                face_voxels = face_voxels.transpose(1, 2, 3, 0)
+                data = {}
+                data['voxel_sdf'] = sdf_voxel
+                data['face_bounded_distance_field'] = face_voxels
+                os.makedirs(os.path.dirname(save_name), exist_ok=True)
+                with open(save_name, 'wb') as f:
+                    pickle.dump(data, f)
+
+                self.test_idx += 1
+
+
     
