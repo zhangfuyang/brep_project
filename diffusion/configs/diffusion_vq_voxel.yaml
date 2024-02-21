@@ -1,12 +1,12 @@
 data_params:
-  train_data_pkl_path: 'reconstruction/logs/vq_latent_train/lightning_logs/version_0/pkl'
-  val_data_pkl_path: 'reconstruction/logs/vq_latent/lightning_logs/version_0/pkl'
-  train_batch_size: 18
-  val_batch_size: 8
-  num_workers: 8
+  train_data_pkl_path: 'train_valid_data_list.pkl'
+  val_data_pkl_path: 'val_valid_data_list.pkl'
+  train_batch_size: 32
+  val_batch_size: 32
+  num_workers: 32
   max_faces: 10
-  face_shuffle: False
-  debug: False
+  face_shuffle: True
+  debug: True
 
 model_params:
   in_channels: 88 # (max_faces + 1) * dim
@@ -24,21 +24,16 @@ trainer_params:
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 2
+  devices: 1
   strategy: 'ddp'
   log_every_n_steps: 50
   limit_val_batches: 5
   val_check_interval: 1.0
   num_sanity_val_steps: 1
   detect_anomaly: False
-  accumulate_grad_batches: 5
   default_root_dir: 'diffusion/logs/vq_latent'
 
 exp_params:
-  solid_mean: -0.0090
-  solid_std: 0.1101
-  face_mean: -0.00477
-  face_std: 0.04548
   lr: 0.0001
   weight_decay: 0.0
   lr_decay: 0.98
@@ -54,6 +49,6 @@ exp_params:
     config: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8/lightning_logs/version_1/config.yaml'
     pretrained_path: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8/lightning_logs/version_1/checkpoints/last-model-epoch=74.ckpt'
     #pretrained_path: null
-  pretrained_model_path: null #'diffusion/logs/vq_latent_debug/lightning_logs/version_0/checkpoints/last-model-epoch=85.ckpt'
+  pretrained_model_path: null #'vqvae/logs/vqvae_voxel_sdf_full_conv/lightning_logs/version_0/checkpoints/last.ckpt'
 
 

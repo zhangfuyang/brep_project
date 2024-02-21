@@ -6,7 +6,7 @@ import pytorch_lightning as pl
 from pytorch_lightning import seed_everything
 from dataset import VoxelDataset, LatentDataset
 from experiment import DiffusionExperiment
-from diffusion_model import UNet3DModel
+from diffusion_model import Solid3DModel
 from utils import load_model
 import sys
 
@@ -31,7 +31,7 @@ sdf_model = load_model(VQVAE3D,
                         config['exp_params']['sdf_model']['config'], 
                         config['exp_params']['sdf_model']['pretrained_path'],
                         exclude_prefix='vae_model.')
-model = UNet3DModel(**config['model_params'])
+model = Solid3DModel(**config['model_params'])
 experiment = DiffusionExperiment(config['exp_params'], model, face_model, sdf_model)
 # load pretrained model
 if config['exp_params']['pretrained_model_path'] is not None:

@@ -1,18 +1,19 @@
 data_params:
   train_data_pkl_path: 'reconstruction/logs/vq_latent_train/lightning_logs/version_0/pkl'
   val_data_pkl_path: 'reconstruction/logs/vq_latent/lightning_logs/version_0/pkl'
-  train_batch_size: 18
-  val_batch_size: 8
+  train_batch_size: 4
+  val_batch_size: 4
   num_workers: 8
   max_faces: 10
-  face_shuffle: False
+  face_shuffle: True
   debug: False
 
 model_params:
-  in_channels: 88 # (max_faces + 1) * dim
-  out_channels: 88
-  block_types: ["EncodeBlock3D", "EncodeAttnBlock3D", "EncodeBlock3D", "EncodeAttnBlock3D"]
-  block_channels: [256, 512, 1024, 1024]
+  in_channels: 8
+  out_channels: 8
+  voxel_block_types: ["EncodeBlock3D", "EncodeAttnBlock3D", "EncodeBlock3D", "EncodeAttnBlock3D"]
+  face_block_types: ["EncodeBlock3D", "EncodeAttnBlock3D", "EncodeBlock3D", "EncodeAttnBlock3D"]
+  block_channels: [128, 256, 512, 512]
   layers_per_block: 2
   attention_head_dim: 8
   norm_num_groups: 32
@@ -24,7 +25,7 @@ trainer_params:
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 2
+  devices: 1
   strategy: 'ddp'
   log_every_n_steps: 50
   limit_val_batches: 5
@@ -32,7 +33,7 @@ trainer_params:
   num_sanity_val_steps: 1
   detect_anomaly: False
   accumulate_grad_batches: 5
-  default_root_dir: 'diffusion/logs/vq_latent'
+  default_root_dir: 'diffusion_transformer/logs/vq_latent_debug'
 
 exp_params:
   solid_mean: -0.0090

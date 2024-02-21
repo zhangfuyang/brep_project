@@ -13,7 +13,7 @@ model_params:
   channels: [1,2,4,4] # downsample 3 time
   voxel_size: 64
   ch: 32
-  codebook_dim: 8
+  codebook_dim: 4
   codebook_size: 8192
 
 trainer_params:
@@ -29,7 +29,7 @@ trainer_params:
   val_check_interval: 1.0
   num_sanity_val_steps: 1
   detect_anomaly: False
-  default_root_dir: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8'
+  default_root_dir: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_4'
 
 exp_params:
   lr: 0.0001

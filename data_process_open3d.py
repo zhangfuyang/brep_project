@@ -70,6 +70,7 @@ if __name__ == '__main__':
     parser.add_argument('--split', type=str, default='train')
     parser.add_argument('--group_num', type=int, default=5)
     parser.add_argument('--group_id', type=int, default=0)
+    parser.add_argument('--max_faces', type=int, default=10)
     args = parser.parse_args()
 
     root_path = 'Data/deepcad_subset'
@@ -95,16 +96,11 @@ if __name__ == '__main__':
             data_dir = os.path.join(root_path, split, data_id)
             # Load the step file
             step_file = glob.glob(os.path.join(data_dir, '*.step'))[0]
-            if os.path.exists(os.path.join(data_dir, f'solid_0.pkl')):
-                continue
             solids = load_step(step_file)
             for solid_i, solid in enumerate(solids):
-                if os.path.exists(os.path.join(data_dir, f'solid_{solid_i}.pkl')):
-                    continue
                 faces_halve, solid_halve = split_solid(solid)
-                if os.path.exists(os.path.join(data_dir, f'solid_{solid_i}.stl')) is False:
-                    save_stl(solid_halve.topods_shape(), 
-                             os.path.join(data_dir, f'solid_{solid_i}.stl'))
+                save_stl(solid_halve.topods_shape(), 
+                         os.path.join(data_dir, f'solid_{solid_i}.stl'))
                 solid_mesh = o3d.io.read_triangle_mesh(os.path.join(data_dir, f'solid_{solid_i}.stl'))
                 solid_mesh.remove_duplicated_vertices()
                 solid_mesh.remove_duplicated_triangles()
@@ -123,14 +119,16 @@ if __name__ == '__main__':
 
                 faces = []
                 for face_i, face_halve in enumerate(faces_halve):
-                    if os.path.exists(os.path.join(data_dir, f'face_{solid_i}_{face_i}.stl')) is False:
-                        save_stl(face_halve, 
-                                 os.path.join(data_dir, f'face_{solid_i}_{face_i}.stl'))
+                    save_stl(face_halve, 
+                             os.path.join(data_dir, f'face_{solid_i}_{face_i}.stl'))
                     face_mesh = o3d.io.read_triangle_mesh(os.path.join(data_dir, f'face_{solid_i}_{face_i}.stl'))
                     face_mesh.remove_duplicated_vertices()   
                     face_mesh.remove_duplicated_triangles()
                     scale_to_unit_cube(face_mesh, centroid, max_size)
                     faces.append(face_mesh)
+                
+                if len(faces) > args.max_faces:
+                    continue
 
                 # make solid sdf
                 mesh = o3d.t.geometry.TriangleMesh.from_legacy(solid_mesh)

@@ -5,7 +5,7 @@ import glob
 import numpy as np
 
 root_path = 'Data/deepcad_subset'
-split = 'val'
+split = 'train'
 
 valid_data_list = []
 all_data_list = []

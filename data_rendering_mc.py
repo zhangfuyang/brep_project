@@ -58,10 +58,10 @@ class B_edges:
                     self.vertices[edge, 1], 
                     self.vertices[edge, 2], color=color)
 
-data_root = 'diffusion/logs/vq_latent/lightning_logs/version_1/'
-data_root = 'reconstruction/logs/vq_reconstruction_dim_8/lightning_logs/version_0/'
+data_root = 'diffusion/logs/vq_latent_debug/lightning_logs/version_2/'
+#data_root = 'reconstruction/logs/vq_reconstruction_dim_8/lightning_logs/version_0/'
 folder_name = 'test' # pkl
-folder_name = 'pkl' 
+#folder_name = 'pkl' 
 data_path_list = glob.glob(os.path.join(data_root, f'{folder_name}/*.pkl'))
 for data_path in data_path_list:
     print(data_path)

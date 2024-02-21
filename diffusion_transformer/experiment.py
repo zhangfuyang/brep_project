@@ -64,7 +64,6 @@ class DiffusionExperiment(pl.LightningModule):
         
         bs = sdf_latent.shape[0]
         latent = torch.cat([sdf_latent, face_latent], 1) # bs, 1+M, C, N, N, N
-        latent = latent.reshape(bs, -1, *latent.shape[3:])
         
         return latent
 

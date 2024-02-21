@@ -107,3 +107,64 @@ class ReconExperiment(pl.LightningModule):
         return {'optimizer': optimizer, 'lr_scheduler': scheduler}
             
     
+class GetLatentExperiment(pl.LightningModule):
+    def __init__(self, config, face_model, sdf_model):
+        super(GetLatentExperiment, self).__init__()
+        self.config = config
+        self.face_model = face_model
+        self.sdf_model = sdf_model
+        self.face_model.eval()
+        self.sdf_model.eval()
+    
+    def validation_step(self, batch, batch_idx):
+        torch.cuda.empty_cache()
+        sdf_voxel = batch['sdf'] # bs, 1, N, N, N
+        face_dist = batch['face_dist'] # ?, 1, N, N, N
+        face_nums = batch['face_num'] # bs
+
+        sdf_latent = self.sdf_model.encode(sdf_voxel) # bs, 8, N, N, N
+        # minibatch for face model
+        minibatch = self.config['face_mini_batch']
+        face_latent = []
+        for i in range(0, face_dist.shape[0], minibatch):
+            result = self.face_model.encode(face_dist[i:i+minibatch])
+            face_latent.append(result)
+        face_latent = torch.cat(face_latent, dim=0) # ?, 8, N, N, N
+
+        # save pkl
+        face_num_start = 0
+        for i in range(sdf_voxel.shape[0]):
+            filename = batch['filename'][i]
+            save_path = os.path.join(self.logger.log_dir, 'pkl', f'{filename}.pkl')
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            data = {}
+            data['voxel_sdf'] = sdf_latent[i].cpu().numpy() # 8, N, N, N
+            num = face_nums[i].item()
+            face_result = face_latent[face_num_start:face_num_start+num] #?, 8, N, N, N
+            face_result = face_result.permute(1, 2, 3, 4, 0) #8, N, N, N, ?
+            data['face_bounded_distance_field'] = face_result.cpu().numpy()
+            with open(save_path, 'wb') as f:
+                pickle.dump(data, f)
+            
+            face_num_start += num
+
+
+    def render_mesh(self, voxel, filename):
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        voxel = voxel.cpu().numpy()
+        #voxel = voxel / 3
+        phase = self.config['phase']
+        if phase == 'sdf':
+            vertices, triangles = mcubes.marching_cubes(voxel, 0)
+            mcubes.export_obj(vertices, triangles, filename)
+        elif phase == 'face':
+            points = np.where(voxel < 0.02)
+            points = np.array(points).T
+            pointcloud = trimesh.points.PointCloud(points)
+            # save
+            pointcloud.export(filename)
+        else:
+            raise ValueError(f'phase {phase} not supported')
+
+
+
