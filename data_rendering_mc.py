@@ -58,7 +58,8 @@ class B_edges:
                     self.vertices[edge, 1], 
                     self.vertices[edge, 2], color=color)
 
-data_root = 'diffusion/logs/vq_latent_debug/lightning_logs/version_2/'
+#data_root = 'diffusion/logs/vq_latent_debug/lightning_logs/version_2/'
+data_root = 'cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_1/'
 #data_root = 'reconstruction/logs/vq_reconstruction_dim_8/lightning_logs/version_0/'
 folder_name = 'test' # pkl
 #folder_name = 'pkl' 
