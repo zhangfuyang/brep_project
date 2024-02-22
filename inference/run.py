@@ -32,7 +32,7 @@ for k, v in state_dict.items():
         new_state_dict[k] = v
 model.load_state_dict(new_state_dict, strict=True)
 
-experiment = VAEExperiment2(config['exp_params'], model)
+experiment = VAEExperiment(config['exp_params'], model)
 
 val_dataset = VoxelDataset(config['data_params'], 'val')
 val_dataloader = torch.utils.data.DataLoader(

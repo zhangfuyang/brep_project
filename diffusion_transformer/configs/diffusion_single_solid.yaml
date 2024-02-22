@@ -1,0 +1,50 @@
+data_params:
+  train_data_pkl_path: 'reconstruction/logs/vq_latent_train/lightning_logs/version_0/pkl'
+  val_data_pkl_path: 'reconstruction/logs/vq_latent/lightning_logs/version_0/pkl'
+  train_batch_size: 256
+  val_batch_size: 32
+  num_workers: 32
+  data_key: 'voxel_sdf'
+  debug: False
+  use_cache: True
+
+model_params:
+  in_channels: 8
+  out_channels: 8
+  block_types: ["EncodeBlock3D", "EncodeAttnBlock3D", "EncodeAttnBlock3D", "EncodeAttnBlock3D"]
+  block_channels: [128, 256, 512, 512]
+  layers_per_block: 2
+  attention_head_dim: 8
+  norm_num_groups: 32
+  norm_eps: 1.e-5
+
+trainer_params:
+  manual_seed: 44
+  accelerator: 'gpu'
+  max_epochs: 4000
+  precision: 32
+  num_nodes: 1
+  devices: 1
+  strategy: 'ddp'
+  log_every_n_steps: 50
+  limit_val_batches: 5
+  val_check_interval: 1.0
+  num_sanity_val_steps: 1
+  detect_anomaly: False
+  accumulate_grad_batches: 2
+  default_root_dir: 'diffusion_transformer/logs/solid_only'
+
+exp_params:
+  mean: -0.0090
+  std: 0.1101
+  lr: 0.0001
+  weight_decay: 0.0
+  lr_decay: 0.98
+  recon_loss_type: "l2" # l1 or l2
+  diffusion_steps: 50
+  vae_model:
+    config: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8/lightning_logs/version_1/config.yaml'
+    pretrained_path: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8/lightning_logs/version_1/checkpoints/last-model-epoch=74.ckpt'
+  pretrained_model_path: null #'diffusion/logs/vq_latent_debug/lightning_logs/version_0/checkpoints/last-model-epoch=85.ckpt'
+
+

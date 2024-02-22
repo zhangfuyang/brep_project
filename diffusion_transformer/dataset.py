@@ -4,7 +4,7 @@ import pickle
 import numpy as np
 import os
 
-class VoxelDataset(torch.utils.data.Dataset):
+class VoxelDatasetOld(torch.utils.data.Dataset):
     def __init__(self, data_config, split):
         self.data_config = data_config
         if split == 'train':
@@ -46,6 +46,57 @@ class VoxelDataset(torch.utils.data.Dataset):
         return {'sdf_voxel': sdf_voxel, 'face_voxel': face_voxel, 
                 'face_num': num_faces, 'is_latent': 0,
                 'filename': pkl_path.split('/')[-1].split('.')[0]}
+
+class SingleDataset(torch.utils.data.Dataset):
+    def __init__(self, data_config, split):
+        self.data_config = data_config
+        if split == 'train':
+            if os.path.isfile(data_config['train_data_pkl_path']):
+                self.data_list = pickle.load(open(data_config['train_data_pkl_path'], 'rb'))
+            else:
+                self.data_list = glob.glob(os.path.join(data_config['train_data_pkl_path'], '*.pkl'))
+        elif split == 'val':
+            if os.path.isfile(data_config['val_data_pkl_path']):
+                self.data_list = pickle.load(open(data_config['val_data_pkl_path'], 'rb'))
+            else:
+                self.data_list = glob.glob(os.path.join(data_config['val_data_pkl_path'], '*.pkl'))
+
+        self.fake_data = np.load('pad_latent.npy')
+
+        self.cache = {}
+        if self.data_config['use_cache']:
+            for idx in range(len(self.data_list)):
+                pkl_path = self.data_list[idx]
+                try:
+                    with open(pkl_path, 'rb') as f:
+                        data = pickle.load(f)
+                except:
+                    pass
+                self.cache[idx] = data
+        
+
+    def __len__(self):
+        return len(self.data_list) 
+    
+    def __getitem__(self, idx):
+        if torch.randint(0, 100, (1,)).item() == 0 and self.data_config['data_key'] != 'voxel_sdf':
+            voxel = self.fake_data
+        else:
+            if idx in self.cache:
+                data = self.cache[idx]
+            else:
+                pkl_path = self.data_list[idx]
+                try:
+                    with open(pkl_path, 'rb') as f:
+                        data = pickle.load(f)
+                except:
+                    return self.__getitem__(torch.randint(0, len(self.data_list), (1,)).item())
+            voxel = data[self.data_config['data_key']] # 8,N,N,N or 8,N,N,N,M
+            if voxel.ndim == 5:
+                voxel_idx = torch.randint(0, voxel.shape[-1], (1,)).item()
+                voxel = voxel[...,voxel_idx]
+        
+        return {'x': voxel}
 
 
 class LatentDataset(torch.utils.data.Dataset):
@@ -116,11 +167,13 @@ class TestDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     import yaml
-    with open('diffusion/configs/diffusion_vq_latent.yaml', 'r') as f:
+    with open('diffusion_transformer/configs/diffusion_single_solid.yaml', 'r') as f:
         config = yaml.safe_load(f)
     
-    train_dataset = LatentDataset(config['data_params'], 'val')
-    for data in train_dataset:
-        print(data)
+    train_dataset = SingleDataset(config['data_params'], 'train')
+    for idx, data in enumerate(train_dataset):
+        print(idx)
+    
+    print('done')
 
 
