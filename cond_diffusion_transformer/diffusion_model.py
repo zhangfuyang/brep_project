@@ -36,7 +36,7 @@ class Solid3DModel(nn.Module):
                     in_channels=block_channels[i],
                     out_channels=block_channels[i],
                     temb_channels=self.face_unet.time_embed_dim,
-                    num_layers=1,
+                    num_layers=layers_per_block,
                     resnet_act_fn=act_fn,
                     attention_head_dim=attention_head_dim,
                     num_groups=norm_num_groups,
@@ -52,7 +52,7 @@ class Solid3DModel(nn.Module):
                     in_channels=block_channels[i],
                     out_channels=block_channels[i],
                     temb_channels=self.face_unet.time_embed_dim,
-                    num_layers=1,
+                    num_layers=layers_per_block,
                     resnet_act_fn=act_fn,
                     attention_head_dim=attention_head_dim,
                     num_groups=norm_num_groups,
@@ -88,8 +88,13 @@ class Solid3DModel(nn.Module):
             bs = face_latent.shape[0]
             m = face_latent.shape[1]
             ch = face_latent.shape[2]
-            face_cross_latent = face_latent[:,None].repeat(1, m, 1, 1, 1, 1, 1) # bs, m, m, ch, n, n, n
-            face_cross_latent = face_cross_latent.reshape(bs * m, m, ch, *face_cross_latent.shape[4:])
+            face_cross_latent = []
+            for m_i in range(m):
+                cross_idx = [i for i in range(m) if i != m_i]
+                face_cross = face_latent[:,cross_idx] # bs, m-1, ch, n, n, n
+                face_cross_latent.append(face_cross[:,None])
+            face_cross_latent = torch.cat(face_cross_latent, 1) # bs, m, m-1, ch, n, n, n
+            face_cross_latent = face_cross_latent.reshape(bs * m, m-1, ch, *face_cross_latent.shape[4:])
             voxel_cross_latent = voxel_latent[:,None].repeat(1, m, 1, 1, 1, 1) # bs, m, ch, n, n, n
             voxel_cross_latent = voxel_cross_latent.reshape(bs * m, ch, *voxel_cross_latent.shape[3:])[:,None] # bs * m, 1, ch, n, n, n
             face_latent = face_latent.reshape(bs * m, ch, *face_latent.shape[3:]) # bs * m, ch, n, n, n

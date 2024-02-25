@@ -59,8 +59,8 @@ class B_edges:
                     self.vertices[edge, 2], color=color)
 
 #data_root = 'diffusion/logs/vq_latent_debug/lightning_logs/version_2/'
-data_root = 'cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_1/'
-#data_root = 'reconstruction/logs/vq_reconstruction_dim_8/lightning_logs/version_0/'
+data_root = 'cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_6/'
+#data_root = 'reconstruction/logs/vq_recon_dim_4/lightning_logs/version_0/'
 folder_name = 'test' # pkl
 #folder_name = 'pkl' 
 data_path_list = glob.glob(os.path.join(data_root, f'{folder_name}/*.pkl'))
@@ -79,8 +79,6 @@ for data_path in data_path_list:
         v_sdf = v_sdf.cpu().numpy()
     if isinstance(f_bdf, torch.Tensor):
         f_bdf = f_bdf.cpu().numpy()
-    if f_bdf.shape[0] < 64:
-        f_bdf = f_bdf.transpose(1, 2, 3, 0)
 
     vertices, triangles = mcubes.marching_cubes(v_sdf, 0)
 
@@ -154,11 +152,16 @@ for data_path in data_path_list:
     for k, v in boundary_dict.items():
         v.export_vertices(f'{save_root}/boundary_{k[0]}_{k[1]}.obj')
 
-    # visualize the shape structure
-    #fig = plt.figure()
-    #ax = fig.add_subplot(111, projection='3d')
-    #for k, v in boundary_dict.items():
-    #    v.visualize(ax)
-    #plt.savefig(f'{save_root}/boundary_visualization.png', dpi=150)
+    
+    # check face only
+    for face_i in range(f_bdf.shape[-1]):
+        face = f_bdf[..., face_i]
+        points = np.where(face < 0.1)
+        points = np.array(points).T
+        pointcloud = trimesh.points.PointCloud(points)
+        # save
+        filename = f'{save_root}/face_only_{face_i}.obj'
+        pointcloud.export(filename)
+
     
 

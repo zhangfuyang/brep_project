@@ -35,6 +35,13 @@ class DiffusionExperiment(pl.LightningModule):
         self.latent_dim = None
         self.test_idx = 0
 
+        # load mean and std
+        with open(config['latent_std_mean_path'], 'rb') as f:
+            data = pickle.load(f)
+        self.face_latent_mean = data['face_mean']
+        self.face_latent_std = data['face_std']
+        self.solid_latent_mean = data['solid_mean']
+        self.solid_latent_std = data['solid_std']
 
     @torch.no_grad()
     def preprocess(self, batch):
@@ -60,13 +67,21 @@ class DiffusionExperiment(pl.LightningModule):
             face_latent = face_voxel
         
         # normalize
-        sdf_latent = (sdf_latent - self.config['solid_mean']) / self.config['solid_std']
-        face_latent = (face_latent - self.config['face_mean']) / self.config['face_std']
+        sdf_latent = (sdf_latent - self.solid_latent_mean) / self.solid_latent_std
+        face_latent = (face_latent - self.face_latent_mean) / self.face_latent_std
         
         bs = sdf_latent.shape[0]
         latent = torch.cat([sdf_latent, face_latent], 1) # bs, 1+M, C, N, N, N
-        
+
         return latent
+    
+    def change_pad_face_to_zero(self, latents, face_num):
+        ## latents: bs, M, C, N, N, N
+        ## face_num: bs
+        latents = latents.clone()
+        for i in range(latents.shape[0]):
+            latents[i, face_num[i]:] = 0
+        return latents
 
     def training_step(self, batch, batch_idx):
         z = self.preprocess(batch)
@@ -74,8 +89,16 @@ class DiffusionExperiment(pl.LightningModule):
         t = torch.randint(0, self.scheduler.num_train_timesteps, (z.shape[0],), device=z.device).long()
         noise = torch.randn_like(z[:,1:])
         noise_z = self.scheduler.add_noise(z[:,1:], noise, t)
+        if self.config['only_valid_face']:
+            noise_z = self.change_pad_face_to_zero(noise_z, batch['face_num'])
         noise_pred = self.diffusion_model(noise_z, z[:,:1],t)
-        sd_loss = torch.nn.functional.mse_loss(noise_pred, noise)
+        if self.config['only_valid_face']:
+            sd_loss = 0
+            for i in range(noise_pred.shape[0]):
+                sd_loss += F.mse_loss(noise_pred[i, :batch['face_num'][i]], noise[i, :batch['face_num'][i]])
+            sd_loss /= noise_pred.shape[0]
+        else:
+            sd_loss = torch.nn.functional.mse_loss(noise_pred, noise)
         self.log('train_loss', sd_loss, rank_zero_only=True, prog_bar=True)
 
         return sd_loss
@@ -93,6 +116,8 @@ class DiffusionExperiment(pl.LightningModule):
 
         for i, t in enumerate(timesteps):
             timestep = torch.cat([t.unsqueeze(0)]*z.shape[0], 0)
+            if self.config['only_valid_face']:
+                z = self.change_pad_face_to_zero(z, batch['face_num'])
             noise_pred = self.diffusion_model(z, x[:,:1], timestep)
             z = self.scheduler.step(noise_pred, t, z).prev_sample
 
@@ -103,11 +128,11 @@ class DiffusionExperiment(pl.LightningModule):
                     _, face_voxels = self.latent_to_voxel(None, z[i])
 
                     save_name_prefix = os.path.join(self.logger.log_dir, 'images', 
-                                         f'{self.global_step}_gt')
+                                         f'{self.global_step}')
                     self.render_mesh(sdf_voxel_gt, save_name_prefix+f'_{i}_sdf.obj', phase='sdf')
 
                     save_name_prefix = os.path.join(self.logger.log_dir, 'images', 
-                                             f'{self.global_step}_gen')
+                                             f'{self.global_step}')
                     self.render_mesh(face_voxels[0], save_name_prefix+f'_{i}_f0.obj', phase='face')
                     self.render_mesh(face_voxels[1], save_name_prefix+f'_{i}_f1.obj', phase='face')
                     self.render_mesh(face_voxels[2], save_name_prefix+f'_{i}_f2.obj', phase='face')
@@ -117,7 +142,7 @@ class DiffusionExperiment(pl.LightningModule):
     def latent_to_voxel(self, sdf_latent, face_latents):
         if sdf_latent is not None:
             sdf_latent = sdf_latent[None] # 1, C, N, N, N
-            sdf_latent = sdf_latent * self.config['solid_std'] + self.config['solid_mean']
+            sdf_latent = sdf_latent * self.solid_latent_std + self.solid_latent_mean
             with torch.no_grad():
                 sdf_voxel = self.sdf_model.quantize_decode(sdf_latent) # 1, 1, N, N, N
             sdf_voxel = sdf_voxel[0,0]
@@ -125,7 +150,7 @@ class DiffusionExperiment(pl.LightningModule):
             sdf_voxel = None
 
         if face_latents is not None:
-            face_latents = face_latents * self.config['face_std'] + self.config['face_mean']
+            face_latents = face_latents * self.face_latent_std + self.face_latent_mean
             with torch.no_grad():
                 face_voxel = self.face_model.quantize_decode(face_latents) # M, 1, N, N, N
             face_voxel = face_voxel[:,0]
@@ -170,20 +195,33 @@ class DiffusionExperiment(pl.LightningModule):
 
         for i, t in enumerate(timesteps):
             timestep = torch.cat([t.unsqueeze(0)]*z.shape[0], 0)
+            if self.config['only_valid_face']:
+                z = self.change_pad_face_to_zero(z, batch['face_num'])
             noise_pred = self.diffusion_model(z, x[:,:1], timestep)
             z = self.scheduler.step(noise_pred, t, z).prev_sample
         
         if self.trainer.is_global_zero:
             for i in range(x.shape[0]):
-                save_name = os.path.join(self.logger.log_dir, 'test', f'{self.test_idx:04d}.pkl')
                 sdf_voxel_gt, _ = self.latent_to_voxel(x[i][0], None)
                 _, face_voxels = self.latent_to_voxel(None, z[i])
+                _, face_voxels_gt = self.latent_to_voxel(None, x[i][1:])
                 sdf_voxel_gt = sdf_voxel_gt.cpu().numpy()
                 face_voxels = face_voxels.cpu().numpy()
                 face_voxels = face_voxels.transpose(1, 2, 3, 0)
+                face_voxels_gt = face_voxels_gt.cpu().numpy()
+                face_voxels_gt = face_voxels_gt.transpose(1, 2, 3, 0)
                 data = {}
                 data['voxel_sdf'] = sdf_voxel_gt
                 data['face_bounded_distance_field'] = face_voxels
+                save_name = os.path.join(self.logger.log_dir, 'test', f'{self.test_idx:04d}.pkl')
+                os.makedirs(os.path.dirname(save_name), exist_ok=True)
+                with open(save_name, 'wb') as f:
+                    pickle.dump(data, f)
+
+                data = {}
+                data['voxel_sdf'] = sdf_voxel_gt
+                data['face_bounded_distance_field'] = face_voxels_gt
+                save_name = os.path.join(self.logger.log_dir, 'test', f'{self.test_idx:04d}_gt.pkl')
                 os.makedirs(os.path.dirname(save_name), exist_ok=True)
                 with open(save_name, 'wb') as f:
                     pickle.dump(data, f)

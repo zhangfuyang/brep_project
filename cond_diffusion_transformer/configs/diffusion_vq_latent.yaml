@@ -1,16 +1,17 @@
 data_params:
-  train_data_pkl_path: 'reconstruction/logs/vq_latent_train/lightning_logs/version_0/pkl'
-  val_data_pkl_path: 'reconstruction/logs/vq_latent/lightning_logs/version_0/pkl'
-  train_batch_size: 8
+  train_data_pkl_path: 'reconstruction/logs/latent_dim_4_train/lightning_logs/version_0/pkl'
+  val_data_pkl_path: 'reconstruction/logs/latent_dim_4_val/lightning_logs/version_0/pkl'
+  train_batch_size: 20
   val_batch_size: 8
   num_workers: 32
   max_faces: 10
-  face_shuffle: True
+  face_shuffle: False
   debug: True
+  fake_latent_path: 'reconstruction/logs/fake_dim_4.npy'
 
 model_params:
-  in_channels: 8
-  out_channels: 8
+  in_channels: 4
+  out_channels: 4
   voxel_block_types: ["EncodeBlock3D", "EncodeBlock3D", "EncodeBlock3D", "EncodeBlock3D"]
   face_block_types: ["EncodeBlock3D", "EncodeAttnBlock3D", "EncodeAttnBlock3D", "EncodeAttnBlock3D"]
   block_channels: [128, 256, 512, 512]
@@ -32,27 +33,26 @@ trainer_params:
   val_check_interval: 1.0
   num_sanity_val_steps: 1
   detect_anomaly: False
-  accumulate_grad_batches: 3
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
   default_root_dir: 'cond_diffusion_transformer/logs/cond_solid_debug'
 
 exp_params:
-  solid_mean: -0.0090
-  solid_std: 0.1101
-  face_mean: -0.00477
-  face_std: 0.04548
-  lr: 0.0001
+  lr: 0.001
   weight_decay: 0.0
   lr_decay: 0.98
   recon_loss_type: "l2" # l1 or l2
   diffusion_steps: 50
+  only_valid_face: True
   face_model:
-    config: 'vqvae/logs/vqvae_face_dist_codebook_dim_8/lightning_logs/version_1/config.yaml'
-    pretrained_path: 'vqvae/logs/vqvae_face_dist_codebook_dim_8/lightning_logs/version_1/checkpoints/last-model-epoch=74.ckpt'
+    config: 'vqvae/logs/vqvae_face_dist_codebook_dim_4/lightning_logs/version_1/config.yaml'
+    pretrained_path: 'vqvae/logs/vqvae_face_dist_codebook_dim_4/lightning_logs/version_1/checkpoints/last-model-epoch=76.ckpt'
   sdf_model: 
-    config: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8/lightning_logs/version_1/config.yaml'
-    pretrained_path: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_8/lightning_logs/version_1/checkpoints/last-model-epoch=74.ckpt'
+    config: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_4/lightning_logs/version_1/config.yaml'
+    pretrained_path: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_4/lightning_logs/version_1/checkpoints/last-model-epoch=76.ckpt'
+  latent_std_mean_path: 'reconstruction/logs/latent_dim_4_mean_std.pkl'
   face_diffusion_model:
-    pretrained_path: 'diffusion_transformer/logs/face_only/lightning_logs/version_0/checkpoints/last-model-epoch=75.ckpt'
-  pretrained_model_path: null #'diffusion/logs/vq_latent_debug/lightning_logs/version_0/checkpoints/last-model-epoch=85.ckpt'
+    pretrained_path: 'diffusion_transformer/logs/face_only/lightning_logs/version_0/checkpoints/last-model-epoch=59.ckpt'
+  pretrained_model_path: 'cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_5/checkpoints/last-model-epoch=18.ckpt'
 
 

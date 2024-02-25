@@ -3,7 +3,8 @@ import numpy as np
 import os
 import glob
 
-data_dir = 'reconstruction/logs/vq_latent/lightning_logs/version_0/pkl'
+data_dir = 'reconstruction/logs/latent_dim_4_val/lightning_logs/version_0/pkl'
+save_path = 'reconstruction/logs/latent_dim_4_mean_std.pkl'
 
 voxel_all = []
 face_all = []
@@ -24,4 +25,14 @@ face_mean, face_std = np.mean(face_udf), np.std(face_udf)
 
 print(f'voxel mean: {voxel_mean}, voxel std: {voxel_std}')
 print(f'face mean: {face_mean}, face std: {face_std}')
+print(f'voxel max: {np.max(voxel_sdf)}, voxel min: {np.min(voxel_sdf)}')
+print(f'face max: {np.max(face_udf)}, face min: {np.min(face_udf)}')
+
+# save pkl
+data = {'solid_mean': voxel_mean, 
+        'solid_std': voxel_std, 
+        'face_mean': face_mean, 
+        'face_std': face_std}
+with open(save_path, 'wb') as f:
+    pickle.dump(data, f)
 

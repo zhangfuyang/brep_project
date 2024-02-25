@@ -112,11 +112,11 @@ class LatentDataset(torch.utils.data.Dataset):
                 self.data_list = pickle.load(open(data_config['val_data_pkl_path'], 'rb'))
             else:
                 self.data_list = glob.glob(os.path.join(data_config['val_data_pkl_path'], '*.pkl'))
-        self.pad_latent = np.load('pad_latent.npy')
+        self.pad_latent = np.load(data_config['fake_latent_path'])
     
     def __len__(self):
         if self.data_config['debug']:
-            return 50000
+            return 10000
         return len(self.data_list) 
     
     def __getitem__(self, idx):

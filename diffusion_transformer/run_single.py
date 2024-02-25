@@ -1,5 +1,6 @@
 import os
 import torch
+torch.set_float32_matmul_precision('medium')
 import yaml
 import argparse
 import pytorch_lightning as pl
@@ -71,6 +72,8 @@ trainer = pl.Trainer(
     default_root_dir=config['trainer_params']['default_root_dir'],
     callbacks=[checkpoint_callback, checkpoint_callback_last, lr_monitor],
     accumulate_grad_batches=config['trainer_params']['accumulate_grad_batches'],
+    check_val_every_n_epoch=None,
+    gradient_clip_val=config['trainer_params']['gradient_clip_val'],
     )
 
 # cp yaml file

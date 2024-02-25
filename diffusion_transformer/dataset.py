@@ -61,7 +61,7 @@ class SingleDataset(torch.utils.data.Dataset):
             else:
                 self.data_list = glob.glob(os.path.join(data_config['val_data_pkl_path'], '*.pkl'))
 
-        self.fake_data = np.load('pad_latent.npy')
+        self.fake_data = np.load(data_config['fake_latent_path'])
 
         self.cache = {}
         if self.data_config['use_cache']:

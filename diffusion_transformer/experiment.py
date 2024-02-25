@@ -34,6 +34,13 @@ class DiffusionExperiment(pl.LightningModule):
         self.latent_dim = None
         self.test_idx = 0
 
+        # load mean and std
+        with open(config['latent_std_mean_path'], 'rb') as f:
+            data = pickle.load(f)
+        self.face_latent_mean = data['face_mean']
+        self.face_latent_std = data['face_std']
+        self.solid_latent_mean = data['solid_mean']
+        self.solid_latent_std = data['solid_std']
 
     @torch.no_grad()
     def preprocess(self, batch):
@@ -59,8 +66,8 @@ class DiffusionExperiment(pl.LightningModule):
             face_latent = face_voxel
         
         # normalize
-        sdf_latent = (sdf_latent - self.config['solid_mean']) / self.config['solid_std']
-        face_latent = (face_latent - self.config['face_mean']) / self.config['face_std']
+        sdf_latent = (sdf_latent - self.solid_latent_mean) / self.solid_latent_std
+        face_latent = (face_latent - self.face_latent_mean) / self.face_latent_std
         
         bs = sdf_latent.shape[0]
         latent = torch.cat([sdf_latent, face_latent], 1) # bs, 1+M, C, N, N, N
@@ -116,11 +123,11 @@ class DiffusionExperiment(pl.LightningModule):
     def latent_to_voxel(self, latent):
         sdf_latent = latent[:self.latent_dim] # dim, N, N, N
         sdf_latent = sdf_latent[None]
-        sdf_latent = sdf_latent * self.config['solid_std'] + self.config['solid_mean']
+        sdf_latent = sdf_latent * self.solid_latent_std + self.solid_latent_mean
 
         face_latents = latent[self.latent_dim:]
         face_latents = face_latents.reshape(-1, self.latent_dim, *face_latents.shape[1:])
-        face_latents = face_latents * self.config['face_std'] + self.config['face_mean']
+        face_latents = face_latents * self.face_latent_std + self.face_latent_mean
 
         with torch.no_grad():
             sdf_voxel = self.sdf_model.quantize_decode(sdf_latent) # 1, 1, N, N, N
@@ -200,8 +207,12 @@ class SingleDiffusionExperiment(pl.LightningModule):
         self.latent_dim = None
         self.test_idx = 0
 
-        self.mean = self.config['mean']
-        self.std = self.config['std']
+        # load mean and std
+        with open(config['latent_std_mean_path'], 'rb') as f:
+            data = pickle.load(f)
+        self.mean = data[f'{self.config["phase"]}_mean']
+        self.std = data[f'{self.config["phase"]}_std']
+
 
     @torch.no_grad()
     def preprocess(self, batch):
