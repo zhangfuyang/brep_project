@@ -19,6 +19,7 @@ model_params:
   attention_head_dim: 8
   norm_num_groups: 32
   norm_eps: 1.e-5
+  cross_attn_zero_init: False
 
 trainer_params:
   manual_seed: 44
@@ -38,7 +39,7 @@ trainer_params:
   default_root_dir: 'cond_diffusion_transformer/logs/cond_solid_debug'
 
 exp_params:
-  lr: 0.001
+  lr: 0.0001
   weight_decay: 0.0
   lr_decay: 0.98
   recon_loss_type: "l2" # l1 or l2
@@ -53,6 +54,6 @@ exp_params:
   latent_std_mean_path: 'reconstruction/logs/latent_dim_4_mean_std.pkl'
   face_diffusion_model:
     pretrained_path: 'diffusion_transformer/logs/face_only/lightning_logs/version_0/checkpoints/last-model-epoch=59.ckpt'
-  pretrained_model_path: 'cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_5/checkpoints/last-model-epoch=18.ckpt'
+  pretrained_model_path: null #'cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_5/checkpoints/last-model-epoch=18.ckpt'
 
 

@@ -17,7 +17,8 @@ class Solid3DModel(nn.Module):
                 act_fn: str = "silu",
                 attention_head_dim = 8,
                 norm_num_groups = 32,
-                norm_eps: float = 1e-5,):
+                norm_eps: float = 1e-5,
+                cross_attn_zero_init = True,):
         super().__init__()
         self.voxel_unet = UNet3DModel(in_channels, out_channels, freq_shift, 
                                       flip_sin_to_cos, voxel_block_types, 
@@ -41,7 +42,7 @@ class Solid3DModel(nn.Module):
                     attention_head_dim=attention_head_dim,
                     num_groups=norm_num_groups,
                     eps=norm_eps,
-                    zero_init=True,
+                    zero_init=cross_attn_zero_init,
                     attention_residual=False
                 )
             )
@@ -57,7 +58,7 @@ class Solid3DModel(nn.Module):
                     attention_head_dim=attention_head_dim,
                     num_groups=norm_num_groups,
                     eps=norm_eps,
-                    zero_init=True,
+                    zero_init=cross_attn_zero_init,
                     attention_residual=False
                 )
             )
