@@ -230,7 +230,7 @@ class DiffusionExperiment(pl.LightningModule):
     
     def on_test_end(self) -> None:
         # call data_render_mc.py
-        command = f'python data_rendering_mc.py --data_root {self.logger.log_dir} --output test'
+        command = f'python data_rendering_mc.py --data_root {self.logger.log_dir} --folder_name test'
         print(f'now running {command}')
         os.system(command)
 
