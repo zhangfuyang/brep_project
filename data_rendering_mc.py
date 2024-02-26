@@ -7,7 +7,18 @@ import os
 import trimesh
 from scipy.interpolate import RegularGridInterpolator
 import matplotlib.pyplot as plt
+import argparse
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--data_root', 
+                    type=str, 
+                    default='cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_0/')
+parser.add_argument('--folder_name', 
+                    type=str, default='test')
+args = parser.parse_args()
+
+data_root = args.data_root
+folder_name = args.folder_name # pkl
 grid_reso = 64
 
 class B_edges:
@@ -58,11 +69,6 @@ class B_edges:
                     self.vertices[edge, 1], 
                     self.vertices[edge, 2], color=color)
 
-#data_root = 'diffusion/logs/vq_latent_debug/lightning_logs/version_2/'
-data_root = 'cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_6/'
-#data_root = 'reconstruction/logs/vq_recon_dim_4/lightning_logs/version_0/'
-folder_name = 'test' # pkl
-#folder_name = 'pkl' 
 data_path_list = glob.glob(os.path.join(data_root, f'{folder_name}/*.pkl'))
 for data_path in data_path_list:
     print(data_path)

@@ -227,4 +227,9 @@ class DiffusionExperiment(pl.LightningModule):
                     pickle.dump(data, f)
 
                 self.test_idx += 1
-
+    
+    def on_test_end(self) -> None:
+        # call data_render_mc.py
+        os.system(f'python data_render_mc.py 
+                  --data_root {self.logger.log_dir} 
+                  --output test')
