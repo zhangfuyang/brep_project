@@ -123,7 +123,7 @@ class DiffusionExperiment(pl.LightningModule):
 
         if self.trainer.is_global_zero:
             if batch_idx == 0: 
-                for i in range(min(5, x.shape[0])):
+                for i in range(min(2, x.shape[0])):
                     sdf_voxel_gt, face_voxels_gt = self.latent_to_voxel(x[i][0], x[i][1:])
                     _, face_voxels = self.latent_to_voxel(None, z[i])
 

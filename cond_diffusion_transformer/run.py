@@ -79,6 +79,7 @@ trainer = pl.Trainer(
     callbacks=[checkpoint_callback, checkpoint_callback_last, lr_monitor],
     accumulate_grad_batches=config['trainer_params']['accumulate_grad_batches'],
     gradient_clip_val=config['trainer_params']['gradient_clip_val'],
+    check_val_every_n_epoch=None
     )
 
 # cp yaml file
