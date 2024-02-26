@@ -1,8 +1,7 @@
 import torch.nn as nn
 import torch
 from model_utils import Timesteps, TimestepEmbedding, \
-        get_parameter_dtype, EncodeBlock3D, EncodeAttnBlock3D
-import time
+        get_parameter_dtype, EncodeBlock3D, EncodeAttnBlock3D, Down
 
 class Solid3DModel(nn.Module):
     def __init__(self,
@@ -18,7 +17,8 @@ class Solid3DModel(nn.Module):
                 attention_head_dim = 8,
                 norm_num_groups = 32,
                 norm_eps: float = 1e-5,
-                cross_attn_zero_init = True,):
+                cross_attn_zero_init = True,
+                cross_down_sample = False,):
         super().__init__()
         self.voxel_unet = UNet3DModel(in_channels, out_channels, freq_shift, 
                                       flip_sin_to_cos, voxel_block_types, 
@@ -46,6 +46,18 @@ class Solid3DModel(nn.Module):
                     attention_residual=False
                 )
             )
+        if cross_down_sample:
+            self.f2f_down = nn.ModuleList()
+            for i in range(len(block_channels)):
+                self.f2f_down.append(
+                    nn.Sequential(
+                        Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False),
+                        Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False)
+                    )
+
+                )
+        else:
+            self.f2f_down = None
         self.v2f_attn = nn.ModuleList()
         for i in range(len(block_channels)):
             self.v2f_attn.append(
@@ -62,6 +74,17 @@ class Solid3DModel(nn.Module):
                     attention_residual=False
                 )
             )
+        if cross_down_sample:
+            self.v2f_down = nn.ModuleList()
+            for i in range(len(block_channels)):
+                self.v2f_down.append(
+                    nn.Sequential(
+                        Down(block_channels[i], block_channels[i], num_res_blocks=layers_per_block, with_conv=False),
+                        Down(block_channels[i], block_channels[i], num_res_blocks=layers_per_block, with_conv=False)
+                    )
+                )
+        else:
+            self.v2f_down = None
     
     
     def forward(self, x, cond, timestep):
@@ -85,6 +108,15 @@ class Solid3DModel(nn.Module):
             voxel_latent, _ = self.voxel_unet.encode_block_n(voxel_latent, voxel_t_emb, encode_block_i)
             face_latent, _ = self.face_unet.encode_block_n(face_latent, face_t_emb, encode_block_i)
 
+            voxel_cross_latent_bank = self.v2f_down[encode_block_i](voxel_latent) if self.v2f_down is not None else voxel_latent
+            m = face_latent.shape[1]
+            bs = face_latent.shape[0]
+            if self.f2f_down is not None:
+                face_cross_latent_bank = self.f2f_down[encode_block_i](face_latent.reshape(bs * m, *face_latent.shape[2:]))
+                face_cross_latent_bank = face_cross_latent_bank.reshape(bs, m, *face_cross_latent_bank.shape[1:])
+            else:
+                face_cross_latent_bank = face_latent
+
             # extrct cross_attn latent for face_latent
             bs = face_latent.shape[0]
             m = face_latent.shape[1]
@@ -92,11 +124,11 @@ class Solid3DModel(nn.Module):
             face_cross_latent = []
             for m_i in range(m):
                 cross_idx = [i for i in range(m) if i != m_i]
-                face_cross = face_latent[:,cross_idx] # bs, m-1, ch, n, n, n
+                face_cross = face_cross_latent_bank[:,cross_idx] # bs, m-1, ch, n, n, n
                 face_cross_latent.append(face_cross[:,None])
             face_cross_latent = torch.cat(face_cross_latent, 1) # bs, m, m-1, ch, n, n, n
             face_cross_latent = face_cross_latent.reshape(bs * m, m-1, ch, *face_cross_latent.shape[4:])
-            voxel_cross_latent = voxel_latent[:,None].repeat(1, m, 1, 1, 1, 1) # bs, m, ch, n, n, n
+            voxel_cross_latent = voxel_cross_latent_bank[:,None].repeat(1, m, 1, 1, 1, 1) # bs, m, ch, n, n, n
             voxel_cross_latent = voxel_cross_latent.reshape(bs * m, ch, *voxel_cross_latent.shape[3:])[:,None] # bs * m, 1, ch, n, n, n
             face_latent = face_latent.reshape(bs * m, ch, *face_latent.shape[3:]) # bs * m, ch, n, n, n
             

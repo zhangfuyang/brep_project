@@ -533,3 +533,73 @@ class EncodeAttnBlock3D(nn.Module):
 
         return hidden_states, output_states
 
+
+class Down(nn.Module):
+    def __init__(self, in_channels, out_channels, num_res_blocks=2, with_conv=True):
+        super().__init__()
+        self.res_blocks = nn.ModuleList()
+        for i in range(num_res_blocks):
+            self.res_blocks.append(ResNetBlock(in_channels, out_channels))
+            in_channels = out_channels
+        
+        self.with_conv = with_conv
+        if with_conv:
+            self.downsample = nn.Conv3d(in_channels, out_channels, 
+                                    kernel_size=3, stride=2, padding=0)
+        else:
+            self.downsample = nn.AvgPool3d(2)
+
+    def forward(self, x):
+        for model in self.res_blocks:
+            x = model(x)
+        if self.with_conv:
+            pad = (0,1,0,1,0,1)
+            x = F.pad(x, pad, "constant", 0)
+        return self.downsample(x)
+
+
+class ResNetBlock(nn.Module):
+    def __init__(self, in_channels, out_channels=None):
+        super().__init__()
+        self.in_channels = in_channels
+        out_channels = in_channels if out_channels is None else out_channels
+        self.out_channels = out_channels
+
+        self.norm1 = Normalize(in_channels)
+        self.conv1 = torch.nn.Conv3d(in_channels,
+                                     out_channels,
+                                     kernel_size=3,
+                                     stride=1,
+                                     padding=1)
+        self.norm2 = Normalize(out_channels)
+        self.conv2 = torch.nn.Conv3d(out_channels,
+                                     out_channels,
+                                     kernel_size=3,
+                                     stride=1,
+                                     padding=1)
+        if self.in_channels != self.out_channels:
+            self.conv_shortcut = torch.nn.Conv3d(in_channels,
+                                                 out_channels,
+                                                 kernel_size=3,
+                                                 stride=1,
+                                                 padding=1)
+        
+        self.nonlinearity = nn.SiLU()
+
+    def forward(self, x):
+        h = x
+        h = self.norm1(h)
+        h = self.nonlinearity(h)
+        h = self.conv1(h)
+
+        h = self.norm2(h)
+        h = self.nonlinearity(h)
+        h = self.conv2(h)
+
+        if self.in_channels != self.out_channels:
+            x = self.conv_shortcut(x)
+
+        return x+h
+
+
+

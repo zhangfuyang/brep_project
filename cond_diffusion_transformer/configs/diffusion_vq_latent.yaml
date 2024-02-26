@@ -19,7 +19,8 @@ model_params:
   attention_head_dim: 8
   norm_num_groups: 32
   norm_eps: 1.e-5
-  cross_attn_zero_init: False
+  cross_attn_zero_init: True
+  cross_down_sample: True
 
 trainer_params:
   manual_seed: 44
