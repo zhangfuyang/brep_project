@@ -161,18 +161,54 @@ class LatentDataset(torch.utils.data.Dataset):
                 'face_target_voxel': face_target, 'is_latent': 1,
                 'filename': pkl_path.split('/')[-1].split('.')[0]}
 
-class TestDataset(torch.utils.data.Dataset):
+class TestDataset(LatentDataset):
     def __init__(self, data_config, split):
-        self.data_config = data_config
+        super().__init__(data_config, split)
     
     def __len__(self):
         return 20
     
     def __getitem__(self, idx):
-        sdf_voxel = torch.rand(1, 64,64,64)
-        face_voxel = torch.rand(10, 64,64,64)
-        face_num = 10
-        return {'sdf_voxel': sdf_voxel, 'face_voxel': face_voxel, 'face_num': face_num}
+        if self.data_config['debug']:
+            idx = idx % 5
+        pkl_path = self.data_list[idx]
+        try:
+            with open(pkl_path, 'rb') as f:
+                data = pickle.load(f)
+        except:
+            return self.__getitem__(torch.randint(0, len(self.data_list), (1,)).item())
+        sdf_voxel = data['voxel_sdf'] # 8,N,N,N
+        face_voxel = data['face_bounded_distance_field'] # 8,N,N,N, M
+        face_voxel = np.transpose(face_voxel, (4, 0, 1, 2, 3)) # M, 8, N,N,N
+        # select random number of conditions
+        m = face_voxel.shape[0]
+        if m > self.data_config['max_faces']:
+            return self.__getitem__(torch.randint(0, len(self.data_list), (1,)).item())
+        num_cond = 0
+        permutation = torch.randperm(m)
+        cond_idx = permutation[:num_cond]
+        target_idx = permutation[num_cond:]
+
+        face_condition = face_voxel[cond_idx] if len(cond_idx) != 1 else face_voxel[cond_idx][None] # num_cond, 8, N,N,N
+        # random select one target exclude the condition
+        if len(target_idx) == 0:
+            face_target = self.pad_latent # 8, N,N,N
+        else:
+            face_target = face_voxel[target_idx[0]] # 8, N,N,N
+
+        sdf_voxel = torch.from_numpy(sdf_voxel).float()[None]
+        face_cond_voxel = torch.from_numpy(face_condition).float()
+
+        # pad face to max number of faces
+        max_faces = self.data_config['max_faces']
+        if num_cond < max_faces:
+            pad = torch.from_numpy(self.pad_latent)
+            pad = pad[None]
+            pad = pad.repeat(max_faces - num_cond, 1, 1, 1, 1)
+            face_cond_voxel = torch.cat([face_cond_voxel, pad], 0)
+        return {'sdf_voxel': sdf_voxel, 'face_cond_voxel': face_cond_voxel, 
+                'face_target_voxel': face_target, 'is_latent': 1,
+                'filename': pkl_path.split('/')[-1].split('.')[0]}
 
 
 if __name__ == "__main__":

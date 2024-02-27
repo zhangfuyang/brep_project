@@ -215,17 +215,15 @@ class DiffusionExperiment(pl.LightningModule):
         return {'optimizer': optimizer, 'lr_scheduler': scheduler}
 
     def test_step(self, batch, batch_idx):
-        x = self.preprocess(batch)
-        z = torch.randn_like(x[:,1:])
+        face_target_latent, face_cond_latent, solid_latent = self.preprocess(batch)
+        z = torch.randn_like(face_target_latent)
 
         self.scheduler.set_timesteps(self.config['diffusion_steps'])
         timesteps = self.scheduler.timesteps
 
         for i, t in enumerate(timesteps):
             timestep = torch.cat([t.unsqueeze(0)]*z.shape[0], 0)
-            if self.config['only_valid_face']:
-                z = self.change_pad_face_to_zero(z, batch['face_num'])
-            noise_pred = self.diffusion_model(z, x[:,:1], timestep)
+            noise_pred = self.diffusion_model(z, face_cond_latent, solid_latent, timestep)
             z = self.scheduler.step(noise_pred, t, z).prev_sample
         
         if self.trainer.is_global_zero:
