@@ -1,0 +1,58 @@
+data_params:
+  train_data_pkl_path: 'reconstruction/logs/latent_dim_4_train/lightning_logs/version_0/pkl'
+  val_data_pkl_path: 'reconstruction/logs/latent_dim_4_val/lightning_logs/version_0/pkl'
+  train_batch_size: 4
+  val_batch_size: 8
+  num_workers: 30
+  max_faces: 10
+  debug: True
+  fake_latent_path: 'reconstruction/logs/fake_dim_4.npy'
+
+model_params:
+  in_channels: 4
+  out_channels: 4
+  voxel_block_types: ["EncodeBlock3D", "EncodeBlock3D", "EncodeBlock3D", "EncodeBlock3D"]
+  face_block_types: ["EncodeBlock3D", "EncodeAttnBlock3D", "EncodeAttnBlock3D", "EncodeAttnBlock3D"]
+  block_channels: [128, 256, 512, 512]
+  layers_per_block: 2
+  attention_head_dim: 8
+  norm_num_groups: 32
+  norm_eps: 1.e-5
+  cross_attn_zero_init: True
+  cross_down_sample: True
+
+trainer_params:
+  manual_seed: 441
+  accelerator: 'gpu'
+  max_epochs: 5000
+  precision: 32
+  num_nodes: 1
+  devices: 1
+  strategy: 'ddp'
+  log_every_n_steps: 50
+  limit_val_batches: 5
+  val_check_interval: 500
+  num_sanity_val_steps: 1
+  detect_anomaly: False
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+  default_root_dir: 'regress_cond_diffusion/logs/debug'
+
+exp_params:
+  lr: 0.0001
+  weight_decay: 0.0
+  lr_decay: 0.98
+  recon_loss_type: "l2" # l1 or l2
+  diffusion_steps: 50
+  face_model:
+    config: 'vqvae/logs/vqvae_face_dist_codebook_dim_4/lightning_logs/version_1/config.yaml'
+    pretrained_path: 'vqvae/logs/vqvae_face_dist_codebook_dim_4/lightning_logs/version_1/checkpoints/last-model-epoch=76.ckpt'
+  sdf_model: 
+    config: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_4/lightning_logs/version_1/config.yaml'
+    pretrained_path: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_4/lightning_logs/version_1/checkpoints/last-model-epoch=76.ckpt'
+  latent_std_mean_path: 'reconstruction/logs/latent_dim_4_mean_std.pkl'
+  face_diffusion_model:
+    pretrained_path: 'diffusion_transformer/logs/face_only/lightning_logs/version_0/checkpoints/last-model-epoch=59.ckpt'
+  pretrained_model_path: null #'cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_5/checkpoints/last-model-epoch=18.ckpt'
+
+

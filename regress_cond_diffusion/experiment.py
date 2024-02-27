@@ -44,8 +44,9 @@ class DiffusionExperiment(pl.LightningModule):
 
     @torch.no_grad()
     def preprocess(self, batch):
-        sdf_voxel = batch['sdf_voxel'] # bs, 1, N, N, N or bs, 1, 8, N, N, N
-        face_voxel = batch['face_voxel'] # bs, M, N, N, N or bs, M, 8, N, N, N
+        sdf_voxel = batch['sdf_voxel'] # bs, 1, c, N, N, N
+        face_cond_voxel = batch['face_cond_voxel'] # bs, M, c, N, N, N
+        face_target_voxel = batch['face_target_voxel'] # bs, c, N, N, N
 
         # get latent
         if sdf_voxel.dim() == 5:
@@ -63,16 +64,15 @@ class DiffusionExperiment(pl.LightningModule):
         else:
             self.latent_dim = sdf_voxel.shape[2]
             sdf_latent = sdf_voxel
-            face_latent = face_voxel
+            face_cond_latent = face_cond_voxel
+            face_target_latent = face_target_voxel
         
         # normalize
         sdf_latent = (sdf_latent - self.solid_latent_mean) / self.solid_latent_std
-        face_latent = (face_latent - self.face_latent_mean) / self.face_latent_std
+        face_cond_latent = (face_cond_latent - self.face_latent_mean) / self.face_latent_std
+        face_target_latent = (face_target_latent - self.face_latent_mean) / self.face_latent_std
         
-        bs = sdf_latent.shape[0]
-        latent = torch.cat([sdf_latent, face_latent], 1) # bs, 1+M, C, N, N, N
-
-        return latent
+        return face_target_latent, face_cond_latent, sdf_latent
     
     def change_pad_face_to_zero(self, latents, face_num):
         ## latents: bs, M, C, N, N, N
@@ -83,21 +83,14 @@ class DiffusionExperiment(pl.LightningModule):
         return latents
 
     def training_step(self, batch, batch_idx):
-        z = self.preprocess(batch)
+        face_target_latent, face_cond_latent, solid_latent = self.preprocess(batch)
         
-        t = torch.randint(0, self.scheduler.num_train_timesteps, (z.shape[0],), device=z.device).long()
-        noise = torch.randn_like(z[:,1:])
-        noise_z = self.scheduler.add_noise(z[:,1:], noise, t)
-        if self.config['only_valid_face']:
-            noise_z = self.change_pad_face_to_zero(noise_z, batch['face_num'])
-        noise_pred = self.diffusion_model(noise_z, z[:,:1],t)
-        if self.config['only_valid_face']:
-            sd_loss = 0
-            for i in range(noise_pred.shape[0]):
-                sd_loss += F.mse_loss(noise_pred[i, :batch['face_num'][i]], noise[i, :batch['face_num'][i]])
-            sd_loss /= noise_pred.shape[0]
-        else:
-            sd_loss = torch.nn.functional.mse_loss(noise_pred, noise)
+        t = torch.randint(0, self.scheduler.num_train_timesteps, 
+                          (face_target_latent.shape[0],), device=face_target_latent.device).long()
+        noise = torch.randn_like(face_target_latent)
+        noise_z = self.scheduler.add_noise(face_target_latent, noise, t)
+        noise_pred = self.diffusion_model(noise_z, face_cond_latent, solid_latent, t)
+        sd_loss = torch.nn.functional.mse_loss(noise_pred, noise)
         self.log('train_loss', sd_loss, rank_zero_only=True, prog_bar=True)
 
         return sd_loss
@@ -107,78 +100,114 @@ class DiffusionExperiment(pl.LightningModule):
         self.log("lr", cur_lr, prog_bar=True)
     
     def validation_step(self, batch, batch_idx):
-        x = self.preprocess(batch)
-        z = torch.randn_like(x[:,1:])
+        face_target_latent, face_cond_latent, solid_latent = self.preprocess(batch)
+        z = torch.randn_like(face_target_latent)
 
         self.scheduler.set_timesteps(self.config['diffusion_steps'])
         timesteps = self.scheduler.timesteps
 
         for i, t in enumerate(timesteps):
             timestep = torch.cat([t.unsqueeze(0)]*z.shape[0], 0)
-            if self.config['only_valid_face']:
-                z = self.change_pad_face_to_zero(z, batch['face_num'])
-            noise_pred = self.diffusion_model(z, x[:,:1], timestep)
+            noise_pred = self.diffusion_model(z, face_cond_latent, solid_latent, timestep)
             z = self.scheduler.step(noise_pred, t, z).prev_sample
 
         if self.trainer.is_global_zero:
             if batch_idx == 0: 
-                for i in range(min(2, x.shape[0])):
-                    sdf_voxel_gt, face_voxels_gt = self.latent_to_voxel(x[i][0], x[i][1:])
-                    _, face_voxels = self.latent_to_voxel(None, z[i])
+                for i in range(min(4, z.shape[0])):
+                    target_voxel, face_cond_voxel, solid_voxel = \
+                        self.latent_to_voxel(z[i], face_cond_latent[i], solid_latent[i])
+                    gt_voxel, _, _ = self.latent_to_voxel(face_target_latent[i], None, None)
 
                     save_name_prefix = os.path.join(self.logger.log_dir, 'images', 
                                          f'{self.global_step}')
-                    self.render_mesh(sdf_voxel_gt, save_name_prefix+f'_{i}_sdf.obj', phase='sdf')
+                    self.render_mesh(solid_voxel, save_name_prefix+f'_{i}_sdf.obj', phase='sdf')
 
-                    save_name_prefix = os.path.join(self.logger.log_dir, 'images', 
-                                             f'{self.global_step}')
-                    self.render_mesh(face_voxels[0], save_name_prefix+f'_{i}_f0.obj', phase='face')
-                    self.render_mesh(face_voxels[1], save_name_prefix+f'_{i}_f1.obj', phase='face')
-                    self.render_mesh(face_voxels[2], save_name_prefix+f'_{i}_f2.obj', phase='face')
-                    self.render_mesh(face_voxels[3], save_name_prefix+f'_{i}_f3.obj', phase='face')
-                    self.render_mesh(face_voxels[4], save_name_prefix+f'_{i}_f4.obj', phase='face')
+                    pc_list = []
+                    base_color = np.array([0,255,0,255], dtype=np.uint8)
+                    for j in range(face_cond_voxel.shape[0]):
+                        pc = self.render_mesh(face_cond_voxel[j], None, phase='face', color=base_color)
+                        pc_list.append(pc)
+                    cond_pc = np.concatenate([pc.vertices for pc in pc_list], axis=0)
+                    cond_pc = trimesh.points.PointCloud(cond_pc)
+                    if cond_pc.shape[0] > 0:
+                        cond_pc.colors = np.ones((cond_pc.shape[0], 4)) * base_color
+                    cond_pc.export(save_name_prefix+f'_{i}_cond_faces.obj', include_color=True)
+                    
+                    color = np.array([255,0,0,255], dtype=np.uint8)
+                    target_pc = self.render_mesh(target_voxel, None, phase='face', color=color)
+                    gt_pc = self.render_mesh(gt_voxel, None, phase='face', color=color)
+                    pc = np.concatenate([target_pc.vertices, cond_pc.vertices], axis=0)
+                    pc = trimesh.points.PointCloud(pc)
+                    if pc.shape[0] > 0:
+                        pc.colors = np.concatenate((np.ones((target_pc.shape[0], 4)) * color,
+                                                    np.ones((cond_pc.shape[0], 4)) * base_color), 0)
+                    pc.export(save_name_prefix+f'_{i}_pred_faces.obj', include_color=True)
+                    pc = np.concatenate([gt_pc.vertices, cond_pc.vertices], axis=0)
+                    pc = trimesh.points.PointCloud(pc)
+                    if pc.shape[0] > 0:
+                        pc.colors = np.concatenate((np.ones((gt_pc.shape[0], 4)) * color,
+                                                    np.ones((cond_pc.shape[0], 4)) * base_color), 0)
+                    pc.export(save_name_prefix+f'_{i}_gt_faces.obj', include_color=True)
 
-    def latent_to_voxel(self, sdf_latent, face_latents):
-        if sdf_latent is not None:
-            sdf_latent = sdf_latent[None] # 1, C, N, N, N
-            sdf_latent = sdf_latent * self.solid_latent_std + self.solid_latent_mean
+    def latent_to_voxel(self, target_latent, face_cond_latent, solid_cond_latents):
+        # target_latent: C, N, N, N
+        # face_cond_latent: M, C, N, N, N
+        # solid_cond_latents: 1, C, N, N, N
+        if target_latent is not None:
+            target_latent = target_latent[None] # 1, C, N, N, N
+            target_latent = target_latent * self.face_latent_std + self.face_latent_mean
             with torch.no_grad():
-                sdf_voxel = self.sdf_model.quantize_decode(sdf_latent) # 1, 1, N, N, N
-            sdf_voxel = sdf_voxel[0,0]
+                target_voxel = self.face_model.quantize_decode(target_latent) # 1, 1, N, N, N
+            target_voxel = target_voxel[0,0]
         else:
-            sdf_voxel = None
+            target_voxel = None
 
-        if face_latents is not None:
-            face_latents = face_latents * self.face_latent_std + self.face_latent_mean
+        if face_cond_latent is not None:
+            face_cond_latent = face_cond_latent * self.face_latent_std + self.face_latent_mean
             with torch.no_grad():
-                face_voxel = self.face_model.quantize_decode(face_latents) # M, 1, N, N, N
-            face_voxel = face_voxel[:,0]
+                face_cond_voxel = self.face_model.quantize_decode(face_cond_latent) # M, 1, N, N, N
+            face_cond_voxel = face_cond_voxel[:,0]
         else:
-            face_voxel = None
+            face_cond_voxel = None
         
-        return sdf_voxel, face_voxel
+        if solid_cond_latents is not None:
+            solid_cond_latents = solid_cond_latents * self.solid_latent_std + self.solid_latent_mean
+            with torch.no_grad():
+                solid_voxel = self.sdf_model.quantize_decode(solid_cond_latents) # 1, 1, N, N, N
+            solid_voxel = solid_voxel[0,0]
+        else:
+            solid_voxel = None
+        
+        return target_voxel, face_cond_voxel, solid_voxel
 
-    def render_mesh(self, voxel, filename, phase='sdf'):
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+    def render_mesh(self, voxel, filename, phase='sdf',color=None):
         voxel = voxel.cpu().numpy()
         if phase == 'sdf':
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
             vertices, triangles = mcubes.marching_cubes(voxel, 0)
             mcubes.export_obj(vertices, triangles, filename)
         elif phase == 'face':
             points = np.where(voxel < 0.02)
             points = np.array(points).T
             pointcloud = trimesh.points.PointCloud(points)
+            if color is not None and pointcloud.shape[0] > 0:
+                pointcloud.colors = np.ones((pointcloud.shape[0], 4)) * color
             # save
-            pointcloud.export(filename)
+            if filename is None:
+                return pointcloud
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            pointcloud.export(filename, include_color=True)
+            return pointcloud
         else:
             raise ValueError(f'phase {phase} not supported')
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             [
-                {'params': self.diffusion_model.voxel_unet.parameters(), 'lr': self.config['lr']},
+                {'params': self.diffusion_model.cond_solid_unet.parameters(), 'lr': self.config['lr']},
+                {'params': self.diffusion_model.cond_face_unet.parameters(), 'lr': self.config['lr']},
                 {'params': self.diffusion_model.face_unet.parameters(), 'lr': self.config['lr']*0.1},
-                {'params': self.diffusion_model.v2f_attn.parameters(), 'lr': self.config['lr']},
+                {'params': self.diffusion_model.s2f_attn.parameters(), 'lr': self.config['lr']},
                 {'params': self.diffusion_model.f2f_attn.parameters(), 'lr': self.config['lr']},
             ], 
             lr=self.config['lr'], weight_decay=self.config['weight_decay'])
