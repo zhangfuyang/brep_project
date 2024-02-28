@@ -21,6 +21,7 @@ model_params:
   norm_eps: 1.e-5
   cross_attn_zero_init: True
   cross_down_sample: True
+  cross_pos_encoding_num: 10 # number of position encoding
 
 trainer_params:
   manual_seed: 44

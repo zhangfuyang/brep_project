@@ -18,7 +18,8 @@ class Solid3DModel(nn.Module):
                 norm_num_groups = 32,
                 norm_eps: float = 1e-5,
                 cross_attn_zero_init = True,
-                cross_down_sample = False,):
+                cross_down_sample = False,
+                cross_pos_encoding_num = 0):
         super().__init__()
         self.voxel_unet = UNet3DModel(in_channels, out_channels, freq_shift, 
                                       flip_sin_to_cos, voxel_block_types, 
@@ -52,6 +53,7 @@ class Solid3DModel(nn.Module):
                 self.f2f_down.append(
                     nn.Sequential(
                         Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False),
+                        Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False),
                         Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False)
                     )
 
@@ -79,14 +81,23 @@ class Solid3DModel(nn.Module):
             for i in range(len(block_channels)):
                 self.v2f_down.append(
                     nn.Sequential(
-                        Down(block_channels[i], block_channels[i], num_res_blocks=layers_per_block, with_conv=False),
-                        Down(block_channels[i], block_channels[i], num_res_blocks=layers_per_block, with_conv=False)
+                        Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False),
+                        Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False),
+                        Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False)
                     )
                 )
         else:
             self.v2f_down = None
-    
-    
+
+        if cross_pos_encoding_num != 0:
+            self.cross_pos_encoding_list = nn.ModuleList()
+            for i in range(len(block_channels)):
+                self.cross_pos_encoding_list.append(
+                    nn.Embedding(cross_pos_encoding_num, block_channels[i])
+                )
+        else:
+            self.cross_pos_encoding_list = None
+            
     def forward(self, x, cond, timestep):
 
         # x: bs, 1+m, ch, n, n, n
@@ -117,6 +128,11 @@ class Solid3DModel(nn.Module):
             else:
                 face_cross_latent_bank = face_latent
 
+            if self.cross_pos_encoding_list is not None:
+                pos_encoding = self.cross_pos_encoding_list[encode_block_i].weight[:m] # m, ch
+                face_cross_latent_bank = face_cross_latent_bank + pos_encoding[None,:,:,None,None,None] 
+                # bs, m, ch, n, n, n
+
             # extrct cross_attn latent for face_latent
             bs = face_latent.shape[0]
             m = face_latent.shape[1]
@@ -130,15 +146,23 @@ class Solid3DModel(nn.Module):
             face_cross_latent = face_cross_latent.reshape(bs * m, m-1, ch, *face_cross_latent.shape[4:])
             voxel_cross_latent = voxel_cross_latent_bank[:,None].repeat(1, m, 1, 1, 1, 1) # bs, m, ch, n, n, n
             voxel_cross_latent = voxel_cross_latent.reshape(bs * m, ch, *voxel_cross_latent.shape[3:])[:,None] # bs * m, 1, ch, n, n, n
-            face_latent = face_latent.reshape(bs * m, ch, *face_latent.shape[3:]) # bs * m, ch, n, n, n
             
             # 1. f2f
+            if self.cross_pos_encoding_list is not None:
+                pos_encoding = self.cross_pos_encoding_list[encode_block_i].weight[:m] # m, ch
+                face_latent_temp = face_latent + pos_encoding[None,:,:,None,None,None]
+            else:
+                face_latent_temp = face_latent 
+
+            face_latent_temp = face_latent_temp.reshape(bs * m, ch, *face_latent_temp.shape[3:])
+            face_latent = face_latent.reshape(bs * m, ch, *face_latent.shape[3:]) # bs * m, ch, n, n, n
+
             face_latent = face_latent + self.f2f_attn[encode_block_i](
-                face_latent, face_t_emb_expand, 
+                face_latent_temp, face_t_emb_expand, 
                 encoder_hidden_states=face_cross_latent)[0]
             # 2. v2f
             face_latent = face_latent + self.v2f_attn[encode_block_i](
-                face_latent, face_t_emb_expand, 
+                face_latent_temp, face_t_emb_expand, 
                 encoder_hidden_states=voxel_cross_latent)[0]
             
             face_latent = face_latent.reshape(bs, m, *face_latent.shape[1:])
