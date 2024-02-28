@@ -53,7 +53,7 @@ train_dataloader = torch.utils.data.DataLoader(
 val_dataset = LatentDataset(config['data_params'], 'val')
 val_dataloader = torch.utils.data.DataLoader(
     val_dataset, batch_size=config['data_params']['val_batch_size'], 
-    shuffle=False, num_workers=config['data_params']['num_workers'])
+    shuffle=True, num_workers=config['data_params']['num_workers'])
 
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
     save_top_k=1, monitor='train_loss', mode='min', 
