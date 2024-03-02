@@ -32,14 +32,15 @@ sdf_model = load_model(VQVAE3D,
 model = Solid3DModel(**config['model_params'])
 experiment = DiffusionExperiment(config['exp_params'], model, face_model, sdf_model)
 # load pretrained model
-experiment.load_state_dict(
-    torch.load(args.pretrained_weight, 
-               map_location='cpu')['state_dict'], strict=True)
+if args.pretrained_weight != "":
+    experiment.load_state_dict(
+        torch.load(args.pretrained_weight, 
+                   map_location='cpu')['state_dict'], strict=True)
 
-val_dataset = LatentDataset(config['data_params'], 'val')
+val_dataset = TestDataset(config['data_params'], 'train')
 val_dataloader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=config['data_params']['val_batch_size'], 
-    shuffle=False, num_workers=config['data_params']['num_workers'])
+    val_dataset, batch_size=1,
+    shuffle=True, num_workers=config['data_params']['num_workers'])
 
 trainer = pl.Trainer(
     accelerator=config['trainer_params']['accelerator'], max_epochs=config['trainer_params']['max_epochs'],

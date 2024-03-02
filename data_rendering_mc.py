@@ -15,10 +15,12 @@ parser.add_argument('--data_root',
                     default='cond_diffusion_transformer/logs/cond_solid_debug/lightning_logs/version_0/')
 parser.add_argument('--folder_name', 
                     type=str, default='test')
+parser.add_argument('--save_root', default='')
 args = parser.parse_args()
 
 data_root = args.data_root
 folder_name = args.folder_name # pkl
+save_root = args.save_root if args.save_root != '' else os.path.join(data_root, 'test_render')
 grid_reso = 64
 
 class B_edges:
@@ -73,8 +75,8 @@ data_path_list = glob.glob(os.path.join(data_root, f'{folder_name}/*.pkl'))
 for data_path in data_path_list:
     print(data_path)
     data_name = data_path.split('/')[-1].split('.')[0]
-    save_root = os.path.join(data_root, 'test_render', data_name)
-    os.makedirs(save_root, exist_ok=True)
+    save_base = os.path.join(save_root, data_name)
+    os.makedirs(save_base, exist_ok=True)
 
     with open(data_path, 'rb') as f:
         data = pickle.load(f)
@@ -88,9 +90,9 @@ for data_path in data_path_list:
 
     vertices, triangles = mcubes.marching_cubes(v_sdf, 0)
 
-    mcubes.export_obj(vertices, triangles, f'{save_root}/mc_mesh.obj')
+    mcubes.export_obj(vertices, triangles, f'{save_base}/mc_mesh.obj')
     solid_pc = trimesh.points.PointCloud(vertices)
-    solid_pc.export(f'{save_root}/mc_vertice.obj', include_color=True)
+    solid_pc.export(f'{save_base}/mc_vertice.obj', include_color=True)
 
     all_intersection_points = []
 
@@ -108,7 +110,7 @@ for data_path in data_path_list:
             continue
         pc = trimesh.points.PointCloud(v)
         pc.colors = np.ones((v.shape[0], 4)) * trimesh.visual.random_color()
-        pc.export(f'{save_root}/face_{i}.obj')
+        pc.export(f'{save_base}/face_{i}.obj')
 
     boundary_dict = {}
     for tri in triangles:
@@ -156,7 +158,7 @@ for data_path in data_path_list:
 
     # export the boundary vertices
     for k, v in boundary_dict.items():
-        v.export_vertices(f'{save_root}/boundary_{k[0]}_{k[1]}.obj')
+        v.export_vertices(f'{save_base}/boundary_{k[0]}_{k[1]}.obj')
 
     
     # check face only
@@ -166,7 +168,7 @@ for data_path in data_path_list:
         points = np.array(points).T
         pointcloud = trimesh.points.PointCloud(points)
         # save
-        filename = f'{save_root}/face_only_{face_i}.obj'
+        filename = f'{save_base}/face_only_{face_i}.obj'
         pointcloud.export(filename)
 
     
