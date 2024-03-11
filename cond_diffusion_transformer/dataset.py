@@ -107,21 +107,23 @@ class LatentDataset(torch.utils.data.Dataset):
                 self.data_list = pickle.load(open(data_config['train_data_pkl_path'], 'rb'))
             else:
                 self.data_list = glob.glob(os.path.join(data_config['train_data_pkl_path'], '*.pkl'))
+                self.data_list = sorted(self.data_list)
         elif split == 'val':
             if os.path.isfile(data_config['val_data_pkl_path']):
                 self.data_list = pickle.load(open(data_config['val_data_pkl_path'], 'rb'))
             else:
                 self.data_list = glob.glob(os.path.join(data_config['val_data_pkl_path'], '*.pkl'))
+                self.data_list = sorted(self.data_list)
         self.pad_latent = np.load(data_config['fake_latent_path'])
     
     def __len__(self):
         if self.data_config['debug']:
-            return 10000
+            return 30000
         return len(self.data_list) 
     
     def __getitem__(self, idx):
         if self.data_config['debug']:
-            idx = idx % 5
+            idx = idx % 20
         pkl_path = self.data_list[idx]
         try:
             with open(pkl_path, 'rb') as f:

@@ -7,6 +7,7 @@ from dataset import TestDataset, LatentDataset
 from experiment import DiffusionExperiment
 from diffusion_model import Solid3DModel
 from utils import load_model
+from pytorch_lightning import seed_everything
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'vqvae')))
@@ -17,6 +18,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, default='configs/vae.yaml')
 parser.add_argument('--pretrained_weight', type=str, default='model.ckpt')
 args = parser.parse_args()
+
+seed_everything(1235, True)
 
 with open(args.config, 'r') as f:
     config = yaml.safe_load(f)
@@ -37,7 +40,7 @@ if args.pretrained_weight != "":
         torch.load(args.pretrained_weight, 
                    map_location='cpu')['state_dict'], strict=True)
 
-val_dataset = TestDataset(config['data_params'], 'train')
+val_dataset = TestDataset(config['data_params'], 'val')
 val_dataloader = torch.utils.data.DataLoader(
     val_dataset, batch_size=1,
     shuffle=True, num_workers=config['data_params']['num_workers'])
@@ -52,7 +55,7 @@ trainer = pl.Trainer(
     num_sanity_val_steps=config['trainer_params']['num_sanity_val_steps'],
     detect_anomaly=config['trainer_params']['detect_anomaly'],
     default_root_dir=config['trainer_params']['default_root_dir'],
-    limit_test_batches=2
+    limit_test_batches=10
     )
 
 # cp yaml file

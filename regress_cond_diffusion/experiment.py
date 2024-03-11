@@ -218,6 +218,11 @@ class DiffusionExperiment(pl.LightningModule):
         return {'optimizer': optimizer, 'lr_scheduler': scheduler}
 
     def test_step(self, batch, batch_idx):
+        for round_i in range(3):
+            self.test_one_step(batch, round_i)
+        self.test_idx += 1
+    
+    def test_one_step(self, batch, round_idx):
         face_num = 0
 
         face_target_latent, face_cond_latent, solid_latent = self.preprocess(batch)
@@ -229,74 +234,110 @@ class DiffusionExperiment(pl.LightningModule):
                     
         _,_,solid_voxel = \
             self.latent_to_voxel(None, None, solid_latent[0])
-        save_name_prefix = os.path.join(self.logger.log_dir, 'test', 
-                             f'{self.test_idx:04d}')
+        save_name_prefix = os.path.join(self.logger.log_dir, 'test',
+                             f'{self.test_idx:04d}', f'{round_idx:02d}')
         self.render_mesh(solid_voxel, save_name_prefix+f'/sdf.obj', phase='sdf')
 
-        for round_i in range(15):
+        skip_count = 0
+        round_i = 0
+        while round_i < 40 or skip_count < 2:
+            if skip_count >= 4 and face_cond_latent.shape[1] > 1:
+                # random remove one face
+                print('random remove one face')
+                remove_idx = torch.randint(1, face_cond_latent.shape[1], (1,))
+                face_cond_latent = torch.cat((face_cond_latent[:,:remove_idx], 
+                                             face_cond_latent[:,remove_idx+1:]), 1)
+                skip_count = 0
             z = torch.randn_like(face_target_latent)
             for i, t in enumerate(timesteps):
                 timestep = torch.cat([t.unsqueeze(0)]*z.shape[0], 0)
                 noise_pred = self.diffusion_model(z, face_cond_latent, solid_latent, timestep)
                 z = self.scheduler.step(noise_pred, t, z).prev_sample
         
-            target_voxel, face_cond_voxel, solid_voxel = \
+            new_face_voxel, face_cond_voxel, solid_voxel = \
                 self.latent_to_voxel(z[0], face_cond_latent[0], solid_latent[0])
             
             all_face_cond_latent.append(z[0])
 
-            target_voxel_valid = target_voxel < 0.03
-            face_cond_voxel_valid = (face_cond_voxel < 0.03).sum(0)
+            new_face_voxel_valid = torch.abs(new_face_voxel) < 0.03
+            if new_face_voxel_valid.sum() < 5:
+                continue
+            face_cond_voxel_valid = (torch.abs(face_cond_voxel) < 0.03).sum(0)
             solid_voxel_valid = torch.abs(solid_voxel) < 0.03
             # check percentage of covering new area in solid
             already = torch.logical_and(face_cond_voxel_valid>0, solid_voxel_valid)
-            new = torch.logical_and(target_voxel_valid, torch.logical_and(solid_voxel_valid, ~already))
-            new_cover_percentage = (new.sum() / (target_voxel_valid.sum()+1e-5)).item()
-            overlaping_percentage = (torch.logical_and(target_voxel_valid, face_cond_voxel_valid>0).sum() / (target_voxel_valid.sum()+1e-5)).item()
-            good_cover_percentage = (torch.logical_and(target_voxel_valid, solid_voxel_valid).sum() / (target_voxel_valid.sum()+1e-5)).item()
+            new = torch.logical_and(new_face_voxel_valid, torch.logical_and(solid_voxel_valid, ~already))
+            new_cover_percentage = (new.sum() / (new_face_voxel_valid.sum()+1e-5)).item()
+            good_cover_percentage = (torch.logical_and(new_face_voxel_valid, 
+                                                       solid_voxel_valid).sum() / 
+                                                       (new_face_voxel_valid.sum()+1e-5)).item()
 
-            if target_voxel_valid.sum() < 5:
-                overall_coverage = torch.logical_and(face_cond_voxel_valid>0, solid_voxel_valid).sum() / (solid_voxel_valid.sum()+1e-5)
-                if torch.rand(1).item() < overall_coverage:
-                    break
+            def similarity(a, b, threshold=0.03):
+                if isinstance(a, torch.Tensor):
+                    a = a.cpu().numpy()
+                if isinstance(b, torch.Tensor):
+                    b = b.cpu().numpy()
+                A = np.abs(a) < threshold
+                B = np.abs(b) < threshold
+                return np.sum(A & B) / (np.sum(A | B) + 1e-8)
 
             if torch.rand(1).item() < new_cover_percentage and \
                 torch.rand(1).item() < good_cover_percentage:
-                print('find new face')
+                print('add new face')
                 face_cond_latent = torch.cat((face_cond_latent, z[None]), 1)
                 face_num += 1
-                if torch.rand(1).item() < overlaping_percentage:
-                    print('remove one face')
-                    remove_idx = torch.randint(1, face_cond_latent.shape[1], (1,)).item()
-                    face_cond_latent = torch.cat((face_cond_latent[:,:remove_idx], face_cond_latent[:,remove_idx+1:]), 1)
-                    face_num -= 1
             
-            # save fig
-            pc_list = []
-            base_color = np.array([0,255,0,255], dtype=np.uint8)
-            for j in range(face_cond_voxel.shape[0]):
-                pc = self.render_mesh(face_cond_voxel[j], None, phase='face', color=base_color)
-                pc_list.append(pc)
-            cond_pc = np.concatenate([pc.vertices for pc in pc_list], axis=0)
-            cond_pc = trimesh.points.PointCloud(cond_pc)
-            if cond_pc.shape[0] > 0:
-                cond_pc.colors = np.ones((cond_pc.shape[0], 4)) * base_color
-            save_name = os.path.join(self.logger.log_dir, 'test', 
-                                 f'{self.test_idx:04d}', f'{round_i:02d}_cond.obj')
-            os.makedirs(os.path.dirname(save_name), exist_ok=True)
-            cond_pc.export(save_name, include_color=True)
+                ####### save fig
+                pc_list = []
+                base_color = np.array([0,255,0,255], dtype=np.uint8)
+                for j in range(face_cond_voxel.shape[0]):
+                    pc = self.render_mesh(face_cond_voxel[j], None, phase='face', color=base_color)
+                    pc_list.append(pc)
+                cond_pc = np.concatenate([pc.vertices for pc in pc_list], axis=0)
+                cond_pc = trimesh.points.PointCloud(cond_pc)
+                if cond_pc.shape[0] > 0:
+                    cond_pc.colors = np.ones((cond_pc.shape[0], 4)) * base_color
+                save_name = os.path.join(self.logger.log_dir, 'test', 
+                                     f'{self.test_idx:04d}', f'{round_idx:02d}', 
+                                       f'{round_i:02d}_cond.obj')
+                os.makedirs(os.path.dirname(save_name), exist_ok=True)
+                cond_pc.export(save_name, include_color=True)
             
-            color = np.array([255,0,0,255], dtype=np.uint8)
-            target_pc = self.render_mesh(target_voxel, None, phase='face', color=color)
-            pc = np.concatenate([target_pc.vertices, cond_pc.vertices], axis=0)
-            pc = trimesh.points.PointCloud(pc)
-            if pc.shape[0] > 0:
-                pc.colors = np.concatenate((np.ones((target_pc.shape[0], 4)) * color,
-                                            np.ones((cond_pc.shape[0], 4)) * base_color), 0)
-            save_name = os.path.join(self.logger.log_dir, 'test', 
-                                 f'{self.test_idx:04d}', f'{round_i:02d}_pred.obj')
-            pc.export(save_name, include_color=True)
+                color = np.array([255,0,0,255], dtype=np.uint8)
+                target_pc = self.render_mesh(new_face_voxel, None, phase='face', color=color)
+                pc = np.concatenate([target_pc.vertices, cond_pc.vertices], axis=0)
+                pc = trimesh.points.PointCloud(pc)
+                if pc.shape[0] > 0:
+                    pc.colors = np.concatenate((np.ones((target_pc.shape[0], 4)) * color,
+                                                np.ones((cond_pc.shape[0], 4)) * base_color), 0)
+                save_name = os.path.join(self.logger.log_dir, 'test', 
+                                     f'{self.test_idx:04d}', f'{round_idx:02d}',
+                                     f'{round_i:02d}_pred.obj')
+                pc.export(save_name, include_color=True)
+                ##########
+
+                # remove similar faces
+                face_cond_voxel = torch.cat((face_cond_voxel, new_face_voxel[None]), 0)
+                has_removed = False
+                for i in range(face_cond_voxel.shape[0]):
+                    for j in range(i+1, face_cond_voxel.shape[0]):
+                        score = similarity(face_cond_voxel[i], face_cond_voxel[j])
+                        if torch.rand(1).item() < score:
+                            print('remove similar faces')
+                            keep_idx = [_ for _ in range(face_cond_voxel.shape[0]) if _ != j and _ != i]
+                            face_cond_latent = face_cond_latent[:,keep_idx]
+                            face_num -= 2
+                            has_removed = True
+                            break
+                    if has_removed:
+                        break
+                skip_count = 0
+            else:
+                print('skip')
+                skip_count += 1
             
+            round_i += 1
+
 
         all_face_cond_latent = torch.stack(all_face_cond_latent, 0) 
         if self.trainer.is_global_zero:
@@ -309,7 +350,8 @@ class DiffusionExperiment(pl.LightningModule):
             data['voxel_sdf'] = solid_voxel
             data['face_bounded_distance_field'] = face_voxel
             save_name = os.path.join(self.logger.log_dir, 'test', 
-                                     f'{self.test_idx:04d}', f'pred.pkl')
+                                     f'{self.test_idx:04d}', f'{round_idx:02d}',
+                                     f'pred.pkl')
             os.makedirs(os.path.dirname(save_name), exist_ok=True)
             with open(save_name, 'wb') as f:
                 pickle.dump(data, f)
@@ -320,20 +362,18 @@ class DiffusionExperiment(pl.LightningModule):
             data['voxel_sdf'] = solid_voxel
             data['face_bounded_distance_field'] = all_face_voxel
             save_name = os.path.join(self.logger.log_dir, 'test', 
-                                     f'{self.test_idx:04d}', 'all.pkl')
+                                     f'{self.test_idx:04d}', f'{round_idx:02d}', 'all.pkl')
             with open(save_name, 'wb') as f:
                 pickle.dump(data, f)
 
             # call data_render_mc.py
             command = f'python data_rendering_mc.py --data_root ' + \
-                        f'{os.path.join(self.logger.log_dir, "test")} --folder_name {self.test_idx:04d} ' + \
-                        f'--save_root {os.path.join(self.logger.log_dir, "test", f"{self.test_idx:04d}", "test_render")}'
+                        f'{os.path.join(self.logger.log_dir, "test", f"{self.test_idx:04d}")} --folder_name {round_idx:02d} ' + \
+                        f'--save_root {os.path.join(self.logger.log_dir, "test", f"{self.test_idx:04d}", f"{round_idx:02d}", "test_render")}'
             print(f'now running {command}')
             os.system(command)
 
-            self.test_idx += 1
         
-    
     def on_test_end(self) -> None:
         return
         # call data_render_mc.py

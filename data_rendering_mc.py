@@ -16,6 +16,7 @@ parser.add_argument('--data_root',
 parser.add_argument('--folder_name', 
                     type=str, default='test')
 parser.add_argument('--save_root', default='')
+parser.add_argument('--apply_nms', action='store_true', default=False)
 args = parser.parse_args()
 
 data_root = args.data_root
@@ -71,6 +72,33 @@ class B_edges:
                     self.vertices[edge, 1], 
                     self.vertices[edge, 2], color=color)
 
+def nms(f_bdf):
+    # f_bdf: (64, 64, 64, N)
+    # NMS
+    def similarity(a, b, threshold=0.03):
+        A = np.abs(a) < threshold
+        B = np.abs(b) < threshold
+        return np.sum(A & B) / (np.sum(A | B) + 1e-8)
+
+    valid_idx = [0]
+    for i in range(1, f_bdf.shape[-1]):
+        is_valid = True
+        for j in valid_idx:
+            if similarity(f_bdf[..., i], f_bdf[..., j]) > 0.9:
+                is_valid = False
+                break
+        if is_valid:
+            valid_idx.append(i)
+    return f_bdf[..., valid_idx]
+                
+def clean_bdf(f_bdf, threshold=0.05):
+    valid_idx = []
+    for i in range(f_bdf.shape[-1]):
+        if np.sum(np.abs(f_bdf[..., i]) < threshold) > 0:
+            valid_idx.append(i)
+    return f_bdf[..., valid_idx]
+
+
 data_path_list = glob.glob(os.path.join(data_root, f'{folder_name}/*.pkl'))
 for data_path in data_path_list:
     print(data_path)
@@ -87,6 +115,9 @@ for data_path in data_path_list:
         v_sdf = v_sdf.cpu().numpy()
     if isinstance(f_bdf, torch.Tensor):
         f_bdf = f_bdf.cpu().numpy()
+    if args.apply_nms:
+        f_bdf = clean_bdf(f_bdf)
+        f_bdf = nms(f_bdf)
 
     vertices, triangles = mcubes.marching_cubes(v_sdf, 0)
 

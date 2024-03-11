@@ -36,10 +36,11 @@ experiment.load_state_dict(
     torch.load(args.pretrained_weight, 
                map_location='cpu')['state_dict'], strict=True)
 
-val_dataset = LatentDataset(config['data_params'], 'val')
+config['data_params']['max_faces'] = 10
+val_dataset = LatentDataset(config['data_params'], 'val' if config['data_params']['debug'] else 'train')
 val_dataloader = torch.utils.data.DataLoader(
     val_dataset, batch_size=config['data_params']['val_batch_size'], 
-    shuffle=False, num_workers=config['data_params']['num_workers'])
+    shuffle=True, num_workers=config['data_params']['num_workers'])
 
 trainer = pl.Trainer(
     accelerator=config['trainer_params']['accelerator'], max_epochs=config['trainer_params']['max_epochs'],

@@ -55,6 +55,7 @@ class Solid3DModel(nn.Module):
             for i in range(len(block_channels)):
                 self.f2f_down.append(
                     nn.Sequential(
+                        #Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False),
                         Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False),
                         Down(block_channels[i], block_channels[i], num_res_blocks=1, with_conv=False)
                     )
@@ -83,6 +84,7 @@ class Solid3DModel(nn.Module):
             for i in range(len(block_channels)):
                 self.s2f_down.append(
                     nn.Sequential(
+                        #Down(block_channels[i], block_channels[i], num_res_blocks=layers_per_block, with_conv=False),
                         Down(block_channels[i], block_channels[i], num_res_blocks=layers_per_block, with_conv=False),
                         Down(block_channels[i], block_channels[i], num_res_blocks=layers_per_block, with_conv=False)
                     )

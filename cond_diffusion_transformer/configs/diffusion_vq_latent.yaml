@@ -1,11 +1,11 @@
 data_params:
   train_data_pkl_path: 'reconstruction/logs/latent_dim_4_train/lightning_logs/version_0/pkl'
   val_data_pkl_path: 'reconstruction/logs/latent_dim_4_val/lightning_logs/version_0/pkl'
-  train_batch_size: 20
+  train_batch_size: 30
   val_batch_size: 8
   num_workers: 32
   max_faces: 10
-  face_shuffle: False
+  face_shuffle: True
   debug: True
   fake_latent_path: 'reconstruction/logs/fake_dim_4.npy'
 
@@ -21,32 +21,32 @@ model_params:
   norm_eps: 1.e-5
   cross_attn_zero_init: True
   cross_down_sample: True
-  cross_pos_encoding_num: 10 # number of position encoding
+  cross_pos_encoding_num: 0 # number of position encoding
 
 trainer_params:
-  manual_seed: 44
+  manual_seed: 4488
   accelerator: 'gpu'
-  max_epochs: 200
+  max_epochs: 5000
   precision: 32
   num_nodes: 1
-  devices: 3
+  devices: 2
   strategy: 'ddp'
   log_every_n_steps: 50
   limit_val_batches: 5
-  val_check_interval: 1.0
+  val_check_interval: 800
   num_sanity_val_steps: 1
   detect_anomaly: False
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
-  default_root_dir: 'cond_diffusion_transformer/logs/cond_solid_debug'
+  default_root_dir: 'cond_diffusion_transformer/logs/cond_solid_allow_invalid_face_debug_20'
 
 exp_params:
   lr: 0.0001
   weight_decay: 0.0
-  lr_decay: 0.98
+  lr_decay: 0.99
   recon_loss_type: "l2" # l1 or l2
   diffusion_steps: 50
-  only_valid_face: True
+  only_valid_face: False
   face_model:
     config: 'vqvae/logs/vqvae_face_dist_codebook_dim_4/lightning_logs/version_1/config.yaml'
     pretrained_path: 'vqvae/logs/vqvae_face_dist_codebook_dim_4/lightning_logs/version_1/checkpoints/last-model-epoch=76.ckpt'
