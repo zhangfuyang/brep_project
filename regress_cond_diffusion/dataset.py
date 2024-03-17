@@ -151,7 +151,7 @@ class LatentDataset(torch.utils.data.Dataset):
         face_cond_voxel = torch.from_numpy(face_condition).float()
 
         # pad face to max number of faces
-        max_faces = self.data_config['max_faces']
+        max_faces = self.data_config['max_faces']+1
         if num_cond < max_faces:
             pad = torch.from_numpy(self.pad_latent)
             pad = pad[None]

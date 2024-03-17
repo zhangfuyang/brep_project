@@ -120,9 +120,22 @@ class DiffusionExperiment(pl.LightningModule):
             noise_pred = self.diffusion_model(z, x[:,:1], timestep)
             z = self.scheduler.step(noise_pred, t, z).prev_sample
 
+        base_color = np.array(
+            [[255,   0,  0, 255],  # Red
+            [  0, 255,   0, 255],  # Green
+            [  0,   0, 255, 255],  # Blue
+            [255, 255,   0, 255],  # Yellow
+            [  0, 255, 255, 255],  # Cyan
+            [255,   0, 255, 255],  # Magenta
+            [255, 165,   0, 255],  # Orange
+            [128,   0, 128, 255],  # Purple
+            [255, 192, 203, 255],  # Pink
+            [128, 128, 128, 255]],  # Gray
+            dtype=np.uint8
+        )
         if self.trainer.is_global_zero:
             if batch_idx == 0: 
-                for i in range(min(2, x.shape[0])):
+                for i in range(min(10, x.shape[0])):
                     sdf_voxel_gt, face_voxels_gt = self.latent_to_voxel(x[i][0], x[i][1:])
                     _, face_voxels = self.latent_to_voxel(None, z[i])
 
@@ -130,13 +143,32 @@ class DiffusionExperiment(pl.LightningModule):
                                          f'{self.global_step}')
                     self.render_mesh(sdf_voxel_gt, save_name_prefix+f'_{i}_sdf.obj', phase='sdf')
 
-                    save_name_prefix = os.path.join(self.logger.log_dir, 'images', 
-                                             f'{self.global_step}')
-                    self.render_mesh(face_voxels[0], save_name_prefix+f'_{i}_f0.obj', phase='face')
-                    self.render_mesh(face_voxels[1], save_name_prefix+f'_{i}_f1.obj', phase='face')
-                    self.render_mesh(face_voxels[2], save_name_prefix+f'_{i}_f2.obj', phase='face')
-                    self.render_mesh(face_voxels[3], save_name_prefix+f'_{i}_f3.obj', phase='face')
-                    self.render_mesh(face_voxels[4], save_name_prefix+f'_{i}_f4.obj', phase='face')
+                    all_pc = []
+                    all_color = []
+                    for face_i in range(face_voxels.shape[0]):
+                        face_pc = self.render_mesh(face_voxels[face_i], None, phase='face')
+                        pc = face_pc.vertices
+                        color = np.ones((pc.shape[0], 4), dtype=np.uint8) * base_color[face_i]
+                        all_pc.append(pc)
+                        all_color.append(color)
+                    all_pc = np.concatenate(all_pc, 0)
+                    all_color = np.concatenate(all_color, 0)
+                    pointcloud = trimesh.points.PointCloud(all_pc, colors=all_color)
+                    pointcloud.export(save_name_prefix+f'_{i}_face.obj', include_color=True)
+
+                    all_pc = []
+                    all_color = []
+                    for face_i in range(face_voxels.shape[0]):
+                        face_pc = self.render_mesh(face_voxels_gt[face_i], None, phase='face')
+                        pc = face_pc.vertices
+                        color = np.ones((pc.shape[0], 4), dtype=np.uint8) * base_color[face_i]
+                        all_pc.append(pc)
+                        all_color.append(color)
+                    all_pc = np.concatenate(all_pc, 0)
+                    all_color = np.concatenate(all_color, 0)
+                    pointcloud = trimesh.points.PointCloud(all_pc, colors=all_color)
+                    pointcloud.export(save_name_prefix+f'_{i}_face_gt.obj', include_color=True)
+
 
     def latent_to_voxel(self, sdf_latent, face_latents):
         if sdf_latent is not None:
@@ -159,7 +191,8 @@ class DiffusionExperiment(pl.LightningModule):
         return sdf_voxel, face_voxel
 
     def render_mesh(self, voxel, filename, phase='sdf'):
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        if filename is not None:
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
         voxel = voxel.cpu().numpy()
         if phase == 'sdf':
             vertices, triangles = mcubes.marching_cubes(voxel, 0)
@@ -168,6 +201,8 @@ class DiffusionExperiment(pl.LightningModule):
             points = np.where(voxel < 0.02)
             points = np.array(points).T
             pointcloud = trimesh.points.PointCloud(points)
+            if filename is None:
+                return pointcloud
             # save
             pointcloud.export(filename)
         else:

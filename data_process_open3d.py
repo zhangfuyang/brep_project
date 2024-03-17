@@ -74,7 +74,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     root_path = 'Data/deepcad_subset'
-    voxel_resolution = 64
+    voxel_resolution = 32
     split = args.split # train, val, test
 
     data_ids = os.listdir(os.path.join(root_path, split))
@@ -153,7 +153,7 @@ if __name__ == '__main__':
                 data = {}
                 data['voxel_sdf'] = voxel
                 data['face_bounded_distance_field'] = np.stack(distance_all, axis=-1)
-                with open(os.path.join(data_dir, f'solid_{solid_i}.pkl'), 'wb') as f:
+                with open(os.path.join(data_dir, f'solid_{solid_i}_{voxel_resolution}.pkl'), 'wb') as f:
                     pickle.dump(data, f)
         except:
             failure_ids.append(data_id)

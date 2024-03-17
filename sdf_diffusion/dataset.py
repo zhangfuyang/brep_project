@@ -4,45 +4,49 @@ import pickle
 import numpy as np
 import os
 
-class VoxelDatasetOld(torch.utils.data.Dataset):
+class VoxelDataset(torch.utils.data.Dataset):
     def __init__(self, data_config, split):
         self.data_config = data_config
         if split == 'train':
-            self.data_list = pickle.load(open(data_config['train_data_pkl_path'], 'rb'))
+            self.data_list = glob.glob(data_config['train_data_pkl_path'])
+            self.data_list = sorted(self.data_list)
         elif split == 'val':
-            self.data_list = pickle.load(open(data_config['val_data_pkl_path'], 'rb'))
+            self.data_list = glob.glob(data_config['val_data_pkl_path'])
+            self.data_list = sorted(self.data_list)
     
     def __len__(self):
         return len(self.data_list) 
     
     def __getitem__(self, idx):
         if self.data_config['debug']:
-            idx = idx % 1
+            idx = idx % 20
         pkl_path = self.data_list[idx]
         try:
             with open(pkl_path, 'rb') as f:
                 data = pickle.load(f)
         except:
             return self.__getitem__(torch.randint(0, len(self.data_list), (1,)).item())
-        sdf_voxel = data['voxel_sdf'] # N,N,N
+        sdf_voxel = data['voxel_sdf'][None] # 1,N,N,N
         face_voxel = data['face_bounded_distance_field'] # N,N,N, M
         face_voxel = np.transpose(face_voxel, (3, 0, 1, 2)) # M, N,N,N
+        face_voxel = face_voxel[:,None] # M, 1, N,N,N
         num_faces = face_voxel.shape[0]
         if num_faces > self.data_config['max_faces']:
             return self.__getitem__(torch.randint(0, len(self.data_list), (1,)).item())
         
         sdf_voxel = torch.from_numpy(sdf_voxel).float()[None]
         face_voxel = torch.from_numpy(face_voxel).float()
-        sdf_voxel = torch.clamp(sdf_voxel, -0.95, 0.95)
-        face_voxel = torch.clamp(face_voxel, -0.95, 0.95)
         if self.data_config['face_shuffle']:
             face_voxel = face_voxel[torch.randperm(num_faces)]
 
         # pad face to max number of faces
         max_faces = self.data_config['max_faces']
         if num_faces < max_faces:
-            pad = torch.ones((max_faces - num_faces, *face_voxel.shape[1:]))
-            face_voxel = torch.cat([face_voxel, pad], 0)
+            repeat_time = np.floor(max_faces / num_faces).astype(int)
+            sep = max_faces - num_faces * repeat_time
+            a = torch.cat([face_voxel[:sep], ] * (repeat_time+1), 0)
+            b = torch.cat([face_voxel[sep:], ] * repeat_time, 0)
+            face_voxel = torch.cat([a, b], 0)
         return {'sdf_voxel': sdf_voxel, 'face_voxel': face_voxel, 
                 'face_num': num_faces, 'is_latent': 0,
                 'filename': pkl_path.split('/')[-1].split('.')[0]}
@@ -98,7 +102,6 @@ class SingleDataset(torch.utils.data.Dataset):
         
         return {'x': voxel}
 
-
 class LatentDataset(torch.utils.data.Dataset):
     def __init__(self, data_config, split):
         self.data_config = data_config
@@ -123,7 +126,7 @@ class LatentDataset(torch.utils.data.Dataset):
     
     def __getitem__(self, idx):
         if self.data_config['debug']:
-            idx = idx % 20
+            idx = idx % 2000
         pkl_path = self.data_list[idx]
         try:
             with open(pkl_path, 'rb') as f:
@@ -176,7 +179,7 @@ class TestDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     import yaml
-    with open('cond_diffusion_transformer/configs/diffusion_vq_latent.yaml', 'r') as f:
+    with open('sdf_diffusion/configs/train_latent.yaml', 'r') as f:
         config = yaml.safe_load(f)
     
     train_dataset = LatentDataset(config['data_params'], 'val')

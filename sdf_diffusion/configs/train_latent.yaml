@@ -1,10 +1,10 @@
 data_params:
   train_data_pkl_path: 'reconstruction/logs/latent_dim_4_train/lightning_logs/version_0/pkl'
   val_data_pkl_path: 'reconstruction/logs/latent_dim_4_val/lightning_logs/version_0/pkl'
-  train_batch_size: 30
+  train_batch_size: 50
   val_batch_size: 8
   num_workers: 32
-  max_faces: 10
+  max_faces: 30
   face_shuffle: True
   debug: True
   fake_latent_path: 'reconstruction/logs/fake_dim_4.npy'
@@ -13,41 +13,67 @@ data_params:
 model_params:
   in_channels: 4
   out_channels: 4
-  voxel_block_types: ["EncodeBlock3D", "EncodeBlock3D", "EncodeBlock3D", "EncodeBlock3D"]
-  face_block_types: ["EncodeBlock3D", "EncodeAttnBlock3D", "EncodeAttnBlock3D", "EncodeAttnBlock3D"]
-  block_channels: [128, 256, 512, 512]
+  solid_params:
+    encode_params:
+      types: ["EncodeDownBlock3D", "EncodeDownBlock3D", "EncodeBlock3D"]
+      attns: [False, False, False]
+    mid_params:
+      types: ["EncodeBlock3D"]
+      attns: [False]
+    decode_params:
+      types: ["DecodeUpBlock3D", "DecodeUpBlock3D", "DecodeBlock3D"]
+      attns: [False, False, False]
+    cross_attn_scale: [1, 1, 1,   1,   1, 1, 1]
+    #cross_attn_scale: [2, 1, 1,   1,   2, 3, 3]
+  face_params:
+    encode_params:
+      types: ["EncodeDownBlock3D", "EncodeDownBlock3D", "EncodeBlock3D"]
+      #attns: [True, True, False]
+      attns: [False, True, True]
+    mid_params:
+      types: ["EncodeBlock3D"]
+      attns: [True]
+    decode_params:
+      types: ["DecodeUpBlock3D", "DecodeUpBlock3D", "DecodeBlock3D"]
+      #attns: [True, True, False]
+      attns: [True, True, False]
+    #cross_attn_scale: [0, 0, 0,   0,   0, 0, 0]
+    cross_attn_scale: [1, 1, 1,   1,   1, 1, 1]
+    #cross_attn_scale: [2, 1, 1,   1,   2, 3, 3]
+  #block_channels: [64, 128, 256, 256, 128, 64, 64]
+  #block_channels: [64, 128, 128, 128, 128, 64, 64]
+  block_channels: [32, 64, 128, 128, 64, 32, 32]
   layers_per_block: 2
   attention_head_dim: 8
   norm_num_groups: 32
   norm_eps: 1.e-5
-  cross_attn_zero_init: True
-  cross_down_sample: True
+  cross_attn_zero_init: False
   cross_pos_encoding_num: 0 # number of position encoding
+  cond_solid: True
 
 trainer_params:
-  manual_seed: 4488
+  manual_seed: 123
   accelerator: 'gpu'
   max_epochs: 5000
   precision: 32
   num_nodes: 1
-  devices: 2
+  devices: 3
   strategy: 'ddp'
-  log_every_n_steps: 50
+  log_every_n_steps: 100
   limit_val_batches: 1
-  val_check_interval: 300
+  val_check_interval: 1500
   num_sanity_val_steps: 1
   detect_anomaly: False
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
-  default_root_dir: 'cond_diffusion_transformer/logs/pad_face_debug_20'
+  default_root_dir: 'sdf_diffusion/logs/latent_full_2000'
 
 exp_params:
   lr: 0.0001
   weight_decay: 0.0
-  lr_decay: 0.99
+  lr_decay: 0.999
   recon_loss_type: "l2" # l1 or l2
   diffusion_steps: 50
-  only_valid_face: False
   face_model:
     config: 'vqvae/logs/vqvae_face_dist_codebook_dim_4/lightning_logs/version_1/config.yaml'
     pretrained_path: 'vqvae/logs/vqvae_face_dist_codebook_dim_4/lightning_logs/version_1/checkpoints/last-model-epoch=76.ckpt'
@@ -56,7 +82,5 @@ exp_params:
     pretrained_path: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_4/lightning_logs/version_1/checkpoints/last-model-epoch=76.ckpt'
   latent_std_mean_path: 'reconstruction/logs/latent_dim_4_mean_std.pkl'
   face_diffusion_model:
-    pretrained_path: 'diffusion_transformer/logs/face_only/lightning_logs/version_0/checkpoints/last-model-epoch=59.ckpt'
+    pretrained_path: null #'diffusion_transformer/logs/face_only/lightning_logs/version_0/checkpoints/last-model-epoch=59.ckpt'
   pretrained_model_path: null #'cond_diffusion_transformer/logs/cond_solid_allow_invalid_face_debug_20/lightning_logs/version_1/checkpoints/last-model-epoch=129.ckpt'
-
-
