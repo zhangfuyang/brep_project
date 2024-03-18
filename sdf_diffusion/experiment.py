@@ -232,44 +232,56 @@ class DiffusionExperiment(pl.LightningModule):
         return {'optimizer': optimizer, 'lr_scheduler': scheduler}
 
     def test_step(self, batch, batch_idx):
+        torch.cuda.empty_cache()
         x = self.preprocess(batch)
-        z = torch.randn_like(x[:,1:])
+        z_faces = torch.randn_like(x[:,1:])
+        if self.config['generate_solid']:
+            z_solid = torch.randn_like(x[:,:1])
+        else:
+            z_solid = x[:,:1]
 
         self.scheduler.set_timesteps(self.config['diffusion_steps'])
         timesteps = self.scheduler.timesteps
 
         for i, t in enumerate(timesteps):
-            timestep = torch.cat([t.unsqueeze(0)]*z.shape[0], 0)
-            noise_pred = self.diffusion_model(z, x[:,:1], timestep)
-            z = self.scheduler.step(noise_pred, t, z).prev_sample
-        
+            timestep = torch.cat([t.unsqueeze(0)]*z_faces.shape[0], 0)
+            if self.config['generate_solid']:
+                noise_pred_face, noise_pred_solid = self.diffusion_model(z_faces, z_solid, timestep)
+                z_solid = self.scheduler.step(noise_pred_solid, t, z_solid).prev_sample
+                z_faces = self.scheduler.step(noise_pred_face, t, z_faces).prev_sample
+            else:
+                noise_pred_face, _ = self.diffusion_model(z_faces, z_solid, timestep)
+                z_faces = self.scheduler.step(noise_pred_face, t, z_faces).prev_sample
+
         if self.trainer.is_global_zero:
-            for i in range(x.shape[0]):
-                sdf_voxel_gt, _ = self.latent_to_voxel(x[i][0], None)
-                _, face_voxels = self.latent_to_voxel(None, z[i])
-                _, face_voxels_gt = self.latent_to_voxel(None, x[i][1:])
-                sdf_voxel_gt = sdf_voxel_gt.cpu().numpy()
-                face_voxels = face_voxels.cpu().numpy()
-                face_voxels = face_voxels.transpose(1, 2, 3, 0)
-                face_voxels_gt = face_voxels_gt.cpu().numpy()
-                face_voxels_gt = face_voxels_gt.transpose(1, 2, 3, 0)
-                data = {}
-                data['voxel_sdf'] = sdf_voxel_gt
-                data['face_bounded_distance_field'] = face_voxels
-                save_name = os.path.join(self.logger.log_dir, 'test', f'{self.test_idx:04d}.pkl')
-                os.makedirs(os.path.dirname(save_name), exist_ok=True)
-                with open(save_name, 'wb') as f:
-                    pickle.dump(data, f)
+            if batch_idx == 0: 
+                for i in range(min(10, x.shape[0])):
+                    sdf_voxel_gt, face_voxels_gt = self.latent_to_voxel(x[i][0], x[i][1:])
+                    sdf_voxel, face_voxels = self.latent_to_voxel(z_solid[i][0], z_faces[i])
 
-                data = {}
-                data['voxel_sdf'] = sdf_voxel_gt
-                data['face_bounded_distance_field'] = face_voxels_gt
-                save_name = os.path.join(self.logger.log_dir, 'test', f'{self.test_idx:04d}_gt.pkl')
-                os.makedirs(os.path.dirname(save_name), exist_ok=True)
-                with open(save_name, 'wb') as f:
-                    pickle.dump(data, f)
+                    sdf_voxel_gt = sdf_voxel_gt.cpu().numpy()
+                    sdf_voxel = sdf_voxel.cpu().numpy()
+                    face_voxels = face_voxels.cpu().numpy()
+                    face_voxels = face_voxels.transpose(1, 2, 3, 0)
+                    face_voxels_gt = face_voxels_gt.cpu().numpy()
+                    face_voxels_gt = face_voxels_gt.transpose(1, 2, 3, 0)
+                    data = {}
+                    data['voxel_sdf'] = sdf_voxel
+                    data['face_bounded_distance_field'] = face_voxels
+                    save_name = os.path.join(self.logger.log_dir, 'test', f'{self.test_idx:04d}.pkl')
+                    os.makedirs(os.path.dirname(save_name), exist_ok=True)
+                    with open(save_name, 'wb') as f:
+                        pickle.dump(data, f)
 
-                self.test_idx += 1
+                    data = {}
+                    data['voxel_sdf'] = sdf_voxel_gt
+                    data['face_bounded_distance_field'] = face_voxels_gt
+                    save_name = os.path.join(self.logger.log_dir, 'test', f'{self.test_idx:04d}_gt.pkl')
+                    os.makedirs(os.path.dirname(save_name), exist_ok=True)
+                    with open(save_name, 'wb') as f:
+                        pickle.dump(data, f)
+
+                    self.test_idx += 1
     
     def on_test_end(self) -> None:
         # call data_render_mc.py

@@ -29,6 +29,8 @@ sdf_model = load_model(VQVAE3D,
                         config['exp_params']['sdf_model']['config'], 
                         config['exp_params']['sdf_model']['pretrained_path'],
                         exclude_prefix='vae_model.')
+if 'generate_solid' in config['exp_params']:
+    config['model_params']['gen_solid'] = config['exp_params']['generate_solid']
 model = Solid3DModel(**config['model_params'])
 experiment = DiffusionExperiment(config['exp_params'], model, face_model, sdf_model)
 # load pretrained model

@@ -84,7 +84,7 @@ def nms(f_bdf):
     for i in range(1, f_bdf.shape[-1]):
         is_valid = True
         for j in valid_idx:
-            if similarity(f_bdf[..., i], f_bdf[..., j]) > 0.9:
+            if similarity(f_bdf[..., i], f_bdf[..., j]) > 0.7:
                 is_valid = False
                 break
         if is_valid:
@@ -98,8 +98,10 @@ def clean_bdf(f_bdf, threshold=0.05):
             valid_idx.append(i)
     return f_bdf[..., valid_idx]
 
-
-data_path_list = glob.glob(os.path.join(data_root, f'{folder_name}/*.pkl'))
+if data_root.endswith('.pkl'):
+    data_path_list = [data_root]
+else:
+    data_path_list = glob.glob(os.path.join(data_root, f'{folder_name}/*.pkl'))
 for data_path in data_path_list:
     print(data_path)
     data_name = data_path.split('/')[-1].split('.')[0]

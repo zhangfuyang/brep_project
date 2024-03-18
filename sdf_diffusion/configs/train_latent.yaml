@@ -40,16 +40,16 @@ model_params:
     #cross_attn_scale: [0, 0, 0,   0,   0, 0, 0]
     cross_attn_scale: [1, 1, 1,   1,   1, 1, 1]
     #cross_attn_scale: [2, 1, 1,   1,   2, 3, 3]
-  #block_channels: [64, 128, 256, 256, 128, 64, 64]
+  block_channels: [64, 128, 256, 256, 128, 64, 64]
   #block_channels: [64, 128, 128, 128, 128, 64, 64]
-  block_channels: [32, 64, 128, 128, 64, 32, 32]
+  #block_channels: [32, 64, 128, 128, 64, 32, 32]
   layers_per_block: 2
   attention_head_dim: 8
   norm_num_groups: 32
   norm_eps: 1.e-5
   cross_attn_zero_init: False
   cross_pos_encoding_num: 0 # number of position encoding
-  cond_solid: True
+  has_solid_model: True
 
 trainer_params:
   manual_seed: 123
@@ -66,12 +66,12 @@ trainer_params:
   detect_anomaly: False
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
-  default_root_dir: 'sdf_diffusion/logs/latent_full_2000'
+  default_root_dir: 'sdf_diffusion/logs/latent_full_2000_big_model'
 
 exp_params:
   lr: 0.0001
   weight_decay: 0.0
-  lr_decay: 0.999
+  lr_decay: 0.99998
   recon_loss_type: "l2" # l1 or l2
   diffusion_steps: 50
   face_model:
@@ -84,3 +84,4 @@ exp_params:
   face_diffusion_model:
     pretrained_path: null #'diffusion_transformer/logs/face_only/lightning_logs/version_0/checkpoints/last-model-epoch=59.ckpt'
   pretrained_model_path: null #'cond_diffusion_transformer/logs/cond_solid_allow_invalid_face_debug_20/lightning_logs/version_1/checkpoints/last-model-epoch=129.ckpt'
+  generate_solid: False
