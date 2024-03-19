@@ -54,7 +54,7 @@ trainer = pl.Trainer(
     num_sanity_val_steps=config['trainer_params']['num_sanity_val_steps'],
     detect_anomaly=config['trainer_params']['detect_anomaly'],
     default_root_dir=config['trainer_params']['default_root_dir'],
-    limit_test_batches=2
+    limit_test_batches=3
     )
 
 # cp yaml file

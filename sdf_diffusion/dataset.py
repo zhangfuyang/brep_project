@@ -126,7 +126,7 @@ class LatentDataset(torch.utils.data.Dataset):
     
     def __getitem__(self, idx):
         if self.data_config['debug']:
-            idx = idx % 2000
+            idx = idx % self.data_config['debug_size']
         pkl_path = self.data_list[idx]
         try:
             with open(pkl_path, 'rb') as f:

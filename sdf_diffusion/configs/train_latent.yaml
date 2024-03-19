@@ -50,6 +50,9 @@ model_params:
   cross_attn_zero_init: False
   cross_pos_encoding_num: 0 # number of position encoding
   has_solid_model: True
+  has_s2f_model: True
+  has_f2f_model: True
+  has_f2s_model: False
 
 trainer_params:
   manual_seed: 123
@@ -83,5 +86,5 @@ exp_params:
   latent_std_mean_path: 'reconstruction/logs/latent_dim_4_mean_std.pkl'
   face_diffusion_model:
     pretrained_path: null #'diffusion_transformer/logs/face_only/lightning_logs/version_0/checkpoints/last-model-epoch=59.ckpt'
-  pretrained_model_path: null #'cond_diffusion_transformer/logs/cond_solid_allow_invalid_face_debug_20/lightning_logs/version_1/checkpoints/last-model-epoch=129.ckpt'
+  pretrained_model_path: 'sdf_diffusion/logs/latent_full_2000_big_model/lightning_logs/version_0/checkpoints/last-model-epoch=67.ckpt'
   generate_solid: False

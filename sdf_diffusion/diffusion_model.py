@@ -22,7 +22,10 @@ class Solid3DModel(nn.Module):
                 cross_attn_zero_init = True,
                 cross_pos_encoding_num = 0,
                 has_solid_model = True,
-                gen_solid = False):
+                gen_solid = False,
+                has_s2f_model = True,
+                has_f2f_model = True,
+                has_f2s_model = False,):
         super().__init__()
         self.has_solid_model = has_solid_model
         if has_solid_model is False:
@@ -41,24 +44,10 @@ class Solid3DModel(nn.Module):
 
         self.f2f_attn = nn.ModuleList()
         self.s2f_attn = nn.ModuleList()
+        self.f2s_attn = nn.ModuleList()
         for i in range(len(block_channels)):
-            self.f2f_attn.append(
-                CrossAttnEncodeBlock3D(
-                    in_channels=block_channels[i],
-                    out_channels=block_channels[i],
-                    temb_channels=self.face_unet.time_embed_dim,
-                    num_layers=layers_per_block,
-                    resnet_act_fn=act_fn,
-                    attention_head_dim=attention_head_dim,
-                    num_groups=norm_num_groups,
-                    eps=norm_eps,
-                    zero_init=cross_attn_zero_init,
-                    downsample_scale=face_params['cross_attn_scale'][i],
-                )
-            )
-        if has_solid_model:
-            for i in range(len(block_channels)):
-                self.s2f_attn.append(
+            if has_f2f_model:
+                self.f2f_attn.append(
                     CrossAttnEncodeBlock3D(
                         in_channels=block_channels[i],
                         out_channels=block_channels[i],
@@ -69,9 +58,42 @@ class Solid3DModel(nn.Module):
                         num_groups=norm_num_groups,
                         eps=norm_eps,
                         zero_init=cross_attn_zero_init,
-                        downsample_scale=solid_params['cross_attn_scale'][i],
+                        downsample_scale=face_params['cross_attn_scale'][i],
                     )
                 )
+        if has_solid_model:
+            for i in range(len(block_channels)):
+                if has_s2f_model:
+                    self.s2f_attn.append(
+                        CrossAttnEncodeBlock3D(
+                            in_channels=block_channels[i],
+                            out_channels=block_channels[i],
+                            temb_channels=self.face_unet.time_embed_dim,
+                            num_layers=layers_per_block,
+                            resnet_act_fn=act_fn,
+                            attention_head_dim=attention_head_dim,
+                            num_groups=norm_num_groups,
+                            eps=norm_eps,
+                            zero_init=cross_attn_zero_init,
+                            downsample_scale=solid_params['cross_attn_scale'][i],
+                        )
+                    )
+            for i in range(len(block_channels)):
+                if has_f2s_model:
+                    self.f2s_attn.append(
+                        CrossAttnEncodeBlock3D(
+                            in_channels=block_channels[i],
+                            out_channels=block_channels[i],
+                            temb_channels=self.solid_unet.time_embed_dim,
+                            num_layers=layers_per_block,
+                            resnet_act_fn=act_fn,
+                            attention_head_dim=attention_head_dim,
+                            num_groups=norm_num_groups,
+                            eps=norm_eps,
+                            zero_init=cross_attn_zero_init,
+                            downsample_scale=face_params['cross_attn_scale'][i],
+                        )
+                    )
         
         if cross_pos_encoding_num != 0:
             self.cross_pos_encoding_list = nn.ModuleList()
@@ -84,9 +106,15 @@ class Solid3DModel(nn.Module):
             for i in range(len(block_channels)):
                 self.cross_pos_encoding_list.append(None)
     
-    def cross_attn(self, face_latent, solid_latent, t_emb, f2f_model, s2f_model, pos_encoding_model=None):
+    def cross_attn(self, face_latent, solid_latent, 
+                   face_t_emb, solid_t_emb,
+                   f2f_model, s2f_model, f2s_model,
+                   pos_encoding_model=None):
         # face_latent: bs, m, ch, n, n, n
         # solid_latent: bs, ch, n, n, n
+        # face_t_emb: bsxm, ch
+        # solid_t_emb: bs, ch
+        original_face_latent = face_latent
         m = face_latent.shape[1]
         bs = face_latent.shape[0]
         ch = face_latent.shape[2]
@@ -119,25 +147,34 @@ class Solid3DModel(nn.Module):
 
         if f2f_model is not None:
             f2f_out = f2f_model(
-                face_latent_temp, t_emb, 
+                face_latent_temp, face_t_emb, 
                 cross_hidden_states=face_cross_latent)[0]
         else:
             f2f_out = 0
         
         # 2. s2f
-        if self.has_solid_model:
+        if self.has_solid_model and s2f_model is not None:
             solid_cross_latent = solid_cross_latent_bank[:,None].repeat(1, m, 1, 1, 1, 1) # bs, m, ch, n, n, n
             solid_cross_latent = solid_cross_latent.reshape(bs * m, ch, *solid_cross_latent.shape[3:])[:,None] # bs * m, 1, ch, n, n, n
             s2f_out = s2f_model(
-                face_latent, t_emb, 
+                face_latent, face_t_emb, 
                 cross_hidden_states=solid_cross_latent)[0]
         else:
             s2f_out = 0
         
-        out = f2f_out + s2f_out
-        out = out.reshape(bs, m, *out.shape[1:])
+        face_cross_out = f2f_out + s2f_out
+        face_cross_out = face_cross_out.reshape(bs, m, *face_cross_out.shape[1:])
 
-        return out
+        # 3. f2s
+        if self.has_solid_model and f2s_model is not None:
+            f2s_out = f2s_model(
+                solid_latent, solid_t_emb,
+                cross_hidden_states=original_face_latent)[0]
+        else:
+            f2s_out = 0
+        solid_cross_out = f2s_out
+
+        return face_cross_out, solid_cross_out
             
     def forward(self, faces, solid, timestep):
 
@@ -179,9 +216,14 @@ class Solid3DModel(nn.Module):
             # cross attn
             f2f_attn = self.f2f_attn[cross_model_idx] if cross_model_idx < len(self.f2f_attn) else None
             s2f_attn = self.s2f_attn[cross_model_idx] if cross_model_idx < len(self.s2f_attn) else None
-            face_latent = face_latent + self.cross_attn(face_latent, solid_latent, face_t_emb_expand, 
-                            f2f_attn, s2f_attn,
-                            self.cross_pos_encoding_list[cross_model_idx])
+            f2s_attn = self.f2s_attn[cross_model_idx] if cross_model_idx < len(self.f2s_attn) else None
+            face_cross_latent, solid_cross_latent = \
+                self.cross_attn(face_latent, solid_latent, 
+                                face_t_emb_expand, solid_t_emb, 
+                                f2f_attn, s2f_attn, f2s_attn, 
+                                self.cross_pos_encoding_list[cross_model_idx])
+            face_latent = face_latent + face_cross_latent
+            solid_latent = solid_latent + solid_cross_latent
             cross_model_idx += 1
         
         # mid
@@ -197,9 +239,14 @@ class Solid3DModel(nn.Module):
             # cross attn
             f2f_attn = self.f2f_attn[cross_model_idx] if cross_model_idx < len(self.f2f_attn) else None
             s2f_attn = self.s2f_attn[cross_model_idx] if cross_model_idx < len(self.s2f_attn) else None
-            face_latent = face_latent + self.cross_attn(face_latent, solid_latent, face_t_emb_expand, 
-                            f2f_attn, s2f_attn,
-                            self.cross_pos_encoding_list[cross_model_idx])
+            f2s_attn = self.f2s_attn[cross_model_idx] if cross_model_idx < len(self.f2s_attn) else None
+            face_cross_latent, solid_cross_latent = \
+                self.cross_attn(face_latent, solid_latent, 
+                                face_t_emb_expand, solid_t_emb, 
+                                f2f_attn, s2f_attn, f2s_attn, 
+                                self.cross_pos_encoding_list[cross_model_idx])
+            face_latent = face_latent + face_cross_latent
+            solid_latent = solid_latent + solid_cross_latent
             cross_model_idx += 1
         
         # up
@@ -222,9 +269,14 @@ class Solid3DModel(nn.Module):
             # cross attn
             f2f_attn = self.f2f_attn[cross_model_idx] if cross_model_idx < len(self.f2f_attn) else None
             s2f_attn = self.s2f_attn[cross_model_idx] if cross_model_idx < len(self.s2f_attn) else None
-            face_latent = face_latent + self.cross_attn(face_latent, solid_latent, face_t_emb_expand, 
-                            f2f_attn, s2f_attn,
-                            self.cross_pos_encoding_list[cross_model_idx])
+            f2s_attn = self.f2s_attn[cross_model_idx] if cross_model_idx < len(self.f2s_attn) else None
+            face_cross_latent, solid_cross_latent = \
+                self.cross_attn(face_latent, solid_latent, 
+                                face_t_emb_expand, solid_t_emb, 
+                                f2f_attn, s2f_attn, f2s_attn, 
+                                self.cross_pos_encoding_list[cross_model_idx])
+            face_latent = face_latent + face_cross_latent
+            solid_latent = solid_latent + solid_cross_latent
             cross_model_idx += 1
         
         # post-process

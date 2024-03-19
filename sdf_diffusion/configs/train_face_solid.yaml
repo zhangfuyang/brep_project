@@ -7,6 +7,7 @@ data_params:
   max_faces: 30
   face_shuffle: True
   debug: True
+  debug_size: 20
   fake_latent_path: 'reconstruction/logs/fake_dim_4.npy'
   pad_fake_latent: False
 
@@ -45,6 +46,9 @@ model_params:
   cross_attn_zero_init: False
   cross_pos_encoding_num: 0 # number of position encoding
   has_solid_model: True
+  has_s2f_model: True
+  has_f2f_model: True
+  has_f2s_model: True
 
 trainer_params:
   manual_seed: 123
@@ -61,12 +65,12 @@ trainer_params:
   detect_anomaly: False
   accumulate_grad_batches: 1
   gradient_clip_val: 1.0
-  default_root_dir: 'sdf_diffusion/logs/latent_face_solid_full_2000'
+  default_root_dir: 'sdf_diffusion/logs/latent_face_solid_full_20'
 
 exp_params:
   lr: 0.0001
   weight_decay: 0.0
-  lr_decay: 0.9998
+  lr_decay: 1.
   recon_loss_type: "l2" # l1 or l2
   diffusion_steps: 50
   face_model:

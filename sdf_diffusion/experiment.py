@@ -120,6 +120,25 @@ class DiffusionExperiment(pl.LightningModule):
             else:
                 noise_pred_face, _ = self.diffusion_model(z_faces, z_solid, timestep)
                 z_faces = self.scheduler.step(noise_pred_face, t, z_faces).prev_sample
+        
+        def nms(f_bdf):
+            # f_bdf: (M, 64, 64, 64)
+            # NMS
+            def similarity(a, b, threshold=0.03):
+                A = torch.abs(a) < threshold
+                B = torch.abs(b) < threshold
+                return torch.logical_and(A,B).sum() / (torch.logical_or(A,B).sum() + 1e-8)
+
+            valid_idx = []
+            for i in range(1, f_bdf.shape[0]):
+                is_valid = True
+                for j in valid_idx:
+                    if similarity(f_bdf[i], f_bdf[j]) > 0.7:
+                        is_valid = False
+                        break
+                if is_valid:
+                    valid_idx.append(i)
+            return f_bdf[valid_idx]
 
         base_color = np.array(
             [[255,   0,  0, 255],  # Red
@@ -146,6 +165,7 @@ class DiffusionExperiment(pl.LightningModule):
                     sdf_voxel_gt, face_voxels_gt = self.latent_to_voxel(x[i][0], x[i][1:])
                     sdf_voxel, face_voxels = self.latent_to_voxel(z_solid[i][0], z_faces[i])
 
+                    face_voxels = nms(face_voxels)
                     save_name_prefix = os.path.join(self.logger.log_dir, 'images', 
                                          f'{self.global_step}')
                     self.render_mesh(sdf_voxel_gt, save_name_prefix+f'_{i}_sdf_gt.obj', phase='sdf')
