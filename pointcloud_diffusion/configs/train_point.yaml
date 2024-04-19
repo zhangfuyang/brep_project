@@ -1,0 +1,98 @@
+data_params:
+  class_type: LatentDataset 
+  train_data_pkl_path: 'vqvae/logs/recon/train/lightning_logs/version_0/pkl'
+  train_filter_data_path: 'bad_list_train.pkl'
+  train_pointcloud_path: 'Data/deepcad_subset/train'
+  val_data_pkl_path: 'vqvae/logs/recon/val/lightning_logs/version_0/pkl'
+  val_filter_data_path: 'bad_list_val.pkl'
+  val_pointcloud_path: 'Data/deepcad_subset/val'
+  train_batch_size: 80
+  val_batch_size: 10
+  debug: False
+  num_workers: 32
+  max_faces: 20
+  face_shuffle: True
+  debug_size: 1000
+
+model_params:
+  in_channels: 4
+  out_channels: 4
+  point_params:
+    encode_params:
+      types: ["EncodeDownBlock3D", "EncodeDownBlock3D", "EncodeDownBlock3D", "EncodeBlock3D"]
+      attns: [False, False, False, True]
+    block_channels: [32, 64, 64, 64]
+  solid_params:
+    encode_params:
+      types: ["EncodeDownBlock3D", "EncodeDownBlock3D", "EncodeDownBlock3D", "EncodeBlock3D"]
+      attns: [False, False, False, True]
+    mid_params:
+      types: ["EncodeBlock3D"]
+      attns: [True]
+    decode_params:
+      types: ["DecodeBlock3D", "DecodeUpBlock3D", "DecodeUpBlock3D", "DecodeUpBlock3D"]
+      attns: [True, False, False, False]
+  face_params:
+    encode_params:
+      types: ["EncodeDownBlock3D", "EncodeDownBlock3D", "EncodeDownBlock3D", "EncodeBlock3D"]
+      attns: [False, False, False, True]
+    mid_params:
+      types: ["EncodeBlock3D"]
+      attns: [False]
+    decode_params:
+      types: ["DecodeBlock3D", "DecodeUpBlock3D", "DecodeUpBlock3D", "DecodeUpBlock3D"]
+      attns: [True, False, False, False]
+    
+  cross_attn_params:
+    zero_init: False
+    encoding_num: 0 # number of position encoding
+    f2f_model: [False, False, False, True,  True,  True, False, False, False]
+    f2s_model: [False, False, True, True,   True,  True, True, False, False]
+    s2f_model: [False, False, True, True,   True,   True, True, False, False]
+    f2f_downscale: [0, 0, 0, 0,   0,    0, 0, 0, 0]
+    f2s_downscale: [0, 0, 0, 0,   0,    0, 0, 0, 0]
+    s2f_downscale: [0, 0, 0, 0,   0,    0, 0, 0, 0]
+  block_channels: [32, 64, 128, 128, 128, 128, 64, 32, 32]
+  #block_channels: [64, 128, 256, 512, 512, 256, 128, 64, 64]
+  layers_per_block: 2
+  attention_head_dim: 8
+  norm_num_groups: 32
+  norm_eps: 1.e-5
+  freq_shift: 0
+  flip_sin_to_cos: True
+  act_fn: 'silu'
+
+trainer_params:
+  manual_seed: 123
+  accelerator: 'gpu'
+  max_epochs: 5000
+  precision: 32
+  num_nodes: 1
+  devices: 3
+  strategy: 'ddp'
+  log_every_n_steps: 100
+  limit_val_batches: 1
+  val_check_interval: 2000
+  num_sanity_val_steps: 1
+  detect_anomaly: False
+  accumulate_grad_batches: 1
+  gradient_clip_val: 1.0
+  default_root_dir: 'pointcloud_diffusion/logs/full'
+
+exp_params:
+  guidance_scale: 5.0
+  render_type: 'face_solid'
+  prediction_type: 'sample' # epsilon or sample
+  lr: 0.00005
+  weight_decay: 0.0
+  lr_decay: 0.999
+  loss_type: "l2" # l1 or l2
+  diffusion_steps: 50
+  face_model:
+    config: 'vqvae/logs/vqvae_face_dist_codebook_dim_4_clip/lightning_logs/version_2/config.yaml'
+    pretrained_path: 'vqvae/logs/vqvae_face_dist_codebook_dim_4_clip/lightning_logs/version_2/checkpoints/last-model-epoch=21.ckpt'
+  sdf_model: 
+    config: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_4_clip/lightning_logs/version_2/config.yaml'
+    pretrained_path: 'vqvae/logs/vqvae_voxel_sdf_codebook_dim_4_clip/lightning_logs/version_2/checkpoints/last-model-epoch=21.ckpt'
+  latent_std_mean_path: 'vqvae/logs/recon/val/lightning_logs/version_0/mean_std.pkl'
+  pretrained_model_path: null #'sdf_diffusion/logs/latent_full_generate_face_solid/lightning_logs/version_0/checkpoints/last-model-epoch=888.ckpt'
