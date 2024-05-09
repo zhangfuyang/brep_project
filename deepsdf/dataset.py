@@ -8,7 +8,8 @@ class SDFDataset(torch.utils.data.Dataset):
         self.data_config = data_config
         data_root = data_config['data_path']
         
-        data_paths = glob.glob(os.path.join(data_root, '*', '*.npy'))
+        #data_paths = glob.glob(os.path.join(data_root, '*', '*.npy'))
+        data_paths = np.load('deepsdf/logs/faces/lightning_logs/version_0/temp_path.npy', allow_pickle=True).tolist()
         data_paths = sorted(data_paths)
 
         # count how many data we have
@@ -57,7 +58,7 @@ class SDFDataset(torch.utils.data.Dataset):
 
 if __name__ == "__main__":
     import yaml
-    with open('deepsdf/configs/sdf.yaml', 'r') as f:
+    with open('deepsdf/configs/sdf_face.yaml', 'r') as f:
         config = yaml.safe_load(f)
     
     train_dataset = SDFDataset(config['data_params']['train'])

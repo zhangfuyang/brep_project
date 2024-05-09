@@ -1,0 +1,44 @@
+data_params:
+  train:
+    data_path: 'Data/sdf/train'
+    data_key: 'solid_sdf'
+    batch_size: 256
+    num_points_per_data: 64
+    num_workers: 64
+    margin_beta: [-0.3, 0.3]
+  val:
+    data_path: 'Data/sdf/train'
+    data_key: 'solid_sdf'
+    batch_size: 6
+    num_points_per_data: 8196
+    num_workers: 32
+    margin_beta: [-0.3, 0.3]
+
+model_params:
+  channels: [1024,2048,2048,4096,4096]
+  latent_code_size: 512
+  margin_beta: [-0.3, 0.3]
+
+trainer_params:
+  manual_seed: 44
+  accelerator: 'gpu'
+  max_epochs: 200
+  precision: 32
+  num_nodes: 1
+  devices: 1
+  strategy: 'ddp'
+  log_every_n_steps: 50
+  limit_val_batches: 1
+  val_check_interval: 1.0
+  num_sanity_val_steps: 1
+  detect_anomaly: False
+  default_root_dir: 'deepsdf/logs/solid_l1'
+
+exp_params:
+  lr: 0.0001
+  weight_decay: 0.0
+  lr_decay: 0.999
+  norm_weight: 0.0001
+  pretrained_model_path: null #'vqvae/logs/vqvae_voxel_sdf_full_conv/lightning_logs/version_0/checkpoints/last.ckpt'
+
+  

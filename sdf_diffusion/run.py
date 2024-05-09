@@ -5,7 +5,7 @@ import yaml
 import argparse
 import pytorch_lightning as pl
 from pytorch_lightning import seed_everything
-from dataset import LatentDataset
+from dataset import LatentDataset, LatentDataset_temp, BBoxDataset
 from experiment import DiffusionExperiment
 from diffusion_model import Solid3DModel
 from utils import load_model, load_model_v2
@@ -34,7 +34,7 @@ sdf_model = load_model(VQVAE3D,
                         exclude_prefix='vae_model.')
 if 'generate_solid' in config['exp_params']:
     config['model_params']['gen_solid'] = config['exp_params']['generate_solid']
-model = Solid3DModel(**config['model_params'])
+model = Solid3DModel(config['model_params'])
 
 if config['exp_params']['face_diffusion_model']['pretrained_path'] is not None:
     load_model_v2(model.face_unet, config['exp_params']['face_diffusion_model']['pretrained_path'],
@@ -45,14 +45,19 @@ experiment = DiffusionExperiment(config['exp_params'], model, face_model, sdf_mo
 if config['exp_params']['pretrained_model_path'] is not None:
     experiment.load_state_dict(
         torch.load(config['exp_params']['pretrained_model_path'], 
-                   map_location='cpu')['state_dict'], strict=True)
-
-train_dataset = LatentDataset(config['data_params'], 'val' if config['data_params']['debug'] else 'train')
+                   map_location='cpu')['state_dict'], strict=False)
+if config['data_params']['class_type'] == 'LatentDataset_temp':
+    DataClass = LatentDataset_temp
+elif config['data_params']['class_type'] == 'LatentDataset':
+    DataClass = LatentDataset
+elif config['data_params']['class_type'] == 'BBoxDataset':
+    DataClass = BBoxDataset
+train_dataset = DataClass(config['data_params'], 'val' if config['data_params']['debug'] else 'train')
 train_dataloader = torch.utils.data.DataLoader(
     train_dataset, batch_size=config['data_params']['train_batch_size'], 
     shuffle=True, num_workers=config['data_params']['num_workers'])
 
-val_dataset = LatentDataset(config['data_params'], 'val')
+val_dataset = DataClass(config['data_params'], 'val')
 val_dataloader = torch.utils.data.DataLoader(
     val_dataset, batch_size=config['data_params']['val_batch_size'], 
     shuffle=True, num_workers=config['data_params']['num_workers'])

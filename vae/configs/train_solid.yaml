@@ -1,0 +1,46 @@
+data_params:
+  train:
+    data_path: 'Data/processed/deepcad_subset_v2/train' #'train_valid_data_list.pkl'
+    clip_value: 0.1
+    data_key: 'voxel_sdf'
+    batch_size: 32
+    num_workers: 32
+  val:
+    data_path: 'Data/processed/deepcad_subset_v2/val' # 'val_valid_data_list.pkl'
+    clip_value: 0.1
+    data_key: 'voxel_sdf'
+    batch_size: 32
+    num_workers: 32
+
+model_params:
+  n_channels: 1
+  with_conv: True
+  num_res_blocks: 3
+  channels: [16,32,64,1] # downsample 3 time
+  voxel_dim: 64
+  ch: 4
+
+trainer_params:
+  manual_seed: 123
+  accelerator: 'gpu'
+  max_epochs: 200
+  precision: 32
+  num_nodes: 1
+  devices: 4
+  strategy: 'ddp'
+  log_every_n_steps: 50
+  limit_val_batches: 5
+  val_check_interval: 1.0
+  num_sanity_val_steps: 1
+  detect_anomaly: False
+  default_root_dir: 'vae/logs/vae_solid'
+
+exp_params:
+  lr: 0.0001
+  weight_decay: 0.0
+  lr_decay: 0.95
+  kld_weight: 0.000005 #0.0000005
+  recon_loss_type: "l2" # l1 or l2
+  recon_loss_weight: False
+
+  

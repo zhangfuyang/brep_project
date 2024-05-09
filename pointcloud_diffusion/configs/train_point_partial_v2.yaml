@@ -11,6 +11,7 @@ data_params:
   debug: True
   num_workers: 16
   num_max_views: 1
+  num_min_views: 1
   max_faces: 40
   face_shuffle: True
   debug_size: 20000
@@ -51,7 +52,7 @@ model_params:
     f2f_model: [False, True, True, True,  True,  True, True, False, False]
     f2s_model: [False, True, True, True,   True,  True, True, False, False]
     s2f_model: [False, True, True, True,   True,   True, True, False, False]
-  block_channels: [32, 64, 128, 128, 128, 128, 64, 32, 32]
+  block_channels: [32, 64, 128, 256, 256, 128, 64, 32, 32]
   #block_channels: [64, 128, 256, 512, 512, 256, 128, 64, 64]
   layers_per_block: 2
   attention_head_dim: 8
@@ -84,7 +85,7 @@ exp_params:
   prediction_type: 'sample' # epsilon or sample
   lr: 0.0002
   weight_decay: 0.0
-  lr_decay: 0.999
+  lr_decay: 0.99
   loss_type: "l2" # l1 or l2
   diffusion_steps: 250
   face_model:

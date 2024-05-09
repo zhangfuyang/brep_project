@@ -167,7 +167,8 @@ class PartialPCLatentDataset(LatentDataset):
                 self.cache[idx] = {'data': data, 'meta': meta, 'points_list': points_list}
                 
             # make pointcloud
-            num_views = torch.randint(0, self.data_config['num_max_views']+1, (1,)).item()
+            num_views = torch.randint(self.data_config['num_min_views'], 
+                                      self.data_config['num_max_views']+1, (1,)).item()
             if num_views > 0:
                 point_idxs = torch.randperm(len(points_list))[:num_views]
             

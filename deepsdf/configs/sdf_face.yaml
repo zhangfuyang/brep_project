@@ -39,6 +39,6 @@ exp_params:
   weight_decay: 0.0
   lr_decay: 0.999
   norm_weight: 0.0001
-  pretrained_model_path: null #'vqvae/logs/vqvae_voxel_sdf_full_conv/lightning_logs/version_0/checkpoints/last.ckpt'
+  pretrained_model_path: 'deepsdf/logs/faces/lightning_logs/version_0/checkpoints/last-model-epoch=21.ckpt'
 
   

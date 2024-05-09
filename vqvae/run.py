@@ -10,7 +10,7 @@ from vae_model import VQVAE3D
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', type=str, default='configs/vae.yaml')
+parser.add_argument('--config', type=str, default='vqvae/configs/vqvae_voxel_sdf.yaml')
 args = parser.parse_args()
 
 with open(args.config, 'r') as f:
@@ -26,18 +26,18 @@ if config['exp_params']['pretrained_model_path'] is not None:
         torch.load(config['exp_params']['pretrained_model_path'], 
                    map_location='cpu')['state_dict'], strict=True)
 
-train_dataset = VoxelDataset(config['data_params'], 'train')
+train_dataset = VoxelDataset(config['data_params']['train'])
 train_dataloader = torch.utils.data.DataLoader(
-    train_dataset, batch_size=config['data_params']['train_batch_size'], 
+    train_dataset, batch_size=config['data_params']['batch_size'], 
     shuffle=True, num_workers=config['data_params']['num_workers'])
 
-val_dataset = VoxelDataset(config['data_params'], 'val')
+val_dataset = VoxelDataset(config['data_params']['val'])
 val_dataloader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=config['data_params']['val_batch_size'], 
+    val_dataset, batch_size=12,
     shuffle=True, num_workers=config['data_params']['num_workers'])
 
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    save_top_k=2, monitor='val_loss', mode='min', 
+    save_top_k=1, monitor='val_loss', mode='min', 
     save_last=True, filename='{epoch}-loss={train_loss:.4f}')
 
 checkpoint_callback_last = pl.callbacks.ModelCheckpoint(

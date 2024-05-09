@@ -6,3 +6,6 @@ logs
 *.obj
 *.ply
 **/logs
+temp*
+pc_render
+

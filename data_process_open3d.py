@@ -68,13 +68,15 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--split', type=str, default='train')
-    parser.add_argument('--group_num', type=int, default=5)
+    parser.add_argument('--group_num', type=int, default=1)
     parser.add_argument('--group_id', type=int, default=0)
     parser.add_argument('--max_faces', type=int, default=10)
+    parser.add_argument('--save_face_bbox', action='store_true', default=False)
+    parser.add_argument('--save_pkl', action='store_true', default=False)
     args = parser.parse_args()
 
     root_path = 'Data/deepcad_subset'
-    voxel_resolution = 32
+    voxel_resolution = 64
     split = args.split # train, val, test
 
     data_ids = os.listdir(os.path.join(root_path, split))
@@ -99,8 +101,9 @@ if __name__ == '__main__':
             solids = load_step(step_file)
             for solid_i, solid in enumerate(solids):
                 faces_halve, solid_halve = split_solid(solid)
-                save_stl(solid_halve.topods_shape(), 
-                         os.path.join(data_dir, f'solid_{solid_i}.stl'))
+                if os.path.exists(os.path.join(data_dir, f'solid_{solid_i}.stl')) is False:
+                    save_stl(solid_halve.topods_shape(), 
+                             os.path.join(data_dir, f'solid_{solid_i}.stl'))
                 solid_mesh = o3d.io.read_triangle_mesh(os.path.join(data_dir, f'solid_{solid_i}.stl'))
                 solid_mesh.remove_duplicated_vertices()
                 solid_mesh.remove_duplicated_triangles()
@@ -118,43 +121,56 @@ if __name__ == '__main__':
                 scale_to_unit_cube(solid_mesh, centroid, max_size)
 
                 faces = []
+                faces_bbox = []
                 for face_i, face_halve in enumerate(faces_halve):
-                    save_stl(face_halve, 
-                             os.path.join(data_dir, f'face_{solid_i}_{face_i}.stl'))
+                    if os.path.exists(os.path.join(data_dir, f'face_{solid_i}_{face_i}.stl')) is False:
+                        save_stl(face_halve, 
+                                 os.path.join(data_dir, f'face_{solid_i}_{face_i}.stl'))
                     face_mesh = o3d.io.read_triangle_mesh(os.path.join(data_dir, f'face_{solid_i}_{face_i}.stl'))
                     face_mesh.remove_duplicated_vertices()   
                     face_mesh.remove_duplicated_triangles()
                     scale_to_unit_cube(face_mesh, centroid, max_size)
+                    face_bbox = face_mesh.get_axis_aligned_bounding_box()
+                    face_centroid = face_bbox.get_center()
+                    face_size = face_bbox.get_extent()
+                    # stack centroid and size
+                    face_bbox = np.concatenate([face_centroid, face_size])
                     faces.append(face_mesh)
+                    faces_bbox.append(face_bbox)
+                
+                if args.save_face_bbox:
+                    faces_bbox = np.stack(faces_bbox, axis=0)
+                    np.save(os.path.join(data_dir, f'face_bbox_{solid_i}.npy'), faces_bbox)
                 
                 if len(faces) > args.max_faces:
                     continue
-
-                # make solid sdf
-                mesh = o3d.t.geometry.TriangleMesh.from_legacy(solid_mesh)
-                scene = o3d.t.geometry.RaycastingScene()
-                _ = scene.add_triangles(mesh)
-                points = np.meshgrid(np.arange(voxel_resolution), np.arange(voxel_resolution), np.arange(voxel_resolution))
-                points = np.stack(points, axis=-1) # (64, 64, 64, 3)
-                points = points.reshape(-1, 3).astype(np.float32)
-                points = points / (voxel_resolution-1) * 2 - 1 # [-1, 1]
-                signed_distance = scene.compute_signed_distance(points)
-                voxel = signed_distance.numpy().reshape(voxel_resolution, voxel_resolution, voxel_resolution)
-
-                # save bounded distance field
-                distance_all = []
-                for face_mesh in faces:
+                    
+                if args.save_pkl:
+                    # make solid sdf
+                    mesh = o3d.t.geometry.TriangleMesh.from_legacy(solid_mesh)
                     scene = o3d.t.geometry.RaycastingScene()
-                    scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(face_mesh))
-                    unsigned_distance = scene.compute_distance(points).numpy()
-                    unsigned_distance = unsigned_distance.reshape(voxel_resolution, voxel_resolution, voxel_resolution)
-                    distance_all.append(unsigned_distance)
+                    _ = scene.add_triangles(mesh)
+                    points = np.meshgrid(np.arange(voxel_resolution), np.arange(voxel_resolution), np.arange(voxel_resolution))
+                    points = np.stack(points, axis=-1) # (64, 64, 64, 3)
+                    points = points.reshape(-1, 3).astype(np.float32)
+                    points = points / (voxel_resolution-1) * 2 - 1 # [-1, 1]
+                    signed_distance = scene.compute_signed_distance(points)
+                    voxel = signed_distance.numpy().reshape(voxel_resolution, voxel_resolution, voxel_resolution)
 
-                data = {}
-                data['voxel_sdf'] = voxel
-                data['face_bounded_distance_field'] = np.stack(distance_all, axis=-1)
-                with open(os.path.join(data_dir, f'solid_{solid_i}_{voxel_resolution}.pkl'), 'wb') as f:
-                    pickle.dump(data, f)
+                    # save bounded distance field
+                    distance_all = []
+                    for face_mesh in faces:
+                        scene = o3d.t.geometry.RaycastingScene()
+                        scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(face_mesh))
+                        unsigned_distance = scene.compute_distance(points).numpy()
+                        unsigned_distance = unsigned_distance.reshape(voxel_resolution, voxel_resolution, voxel_resolution)
+                        distance_all.append(unsigned_distance)
+
+                    data = {}
+                    data['voxel_sdf'] = voxel
+                    data['face_bounded_distance_field'] = np.stack(distance_all, axis=-1)
+                    with open(os.path.join(data_dir, f'solid_{solid_i}_{voxel_resolution}.pkl'), 'wb') as f:
+                        pickle.dump(data, f)
         except:
             failure_ids.append(data_id)
             with open(os.path.join(root_path, f'{split}_failure_ids_{args.group_id}.txt'), 'a') as f:

@@ -1,0 +1,43 @@
+data_params:
+  train:
+    data_path: 'Data/processed/deepcad_subset_v2/train' #'train_valid_data_list.pkl'
+    filter_data_path: 'Data/processed/deepcad_subset/train_bad_list.pkl'
+    clip_value: 0.1
+    data_format: 'npz' # 'pkl'
+    augmentation: False
+  val:
+    data_path: 'Data/processed/deepcad_subset_v2/val' # 'val_valid_data_list.pkl'
+    filter_data_path: 'Data/processed/deepcad_subset/val_bad_list.pkl'
+    clip_value: 0.1
+    data_format: 'npz' # 'pkl'
+    augmentation: False
+
+model_params:
+  n_channels: 1
+  with_conv: True
+  num_res_blocks: 2
+  channels: [1,2,4,4] # downsample 3 time
+  voxel_size: 64
+  ch: 32
+  codebook_dim: 4
+  codebook_size: 8192
+
+trainer_params:
+  manual_seed: 44
+  accelerator: 'gpu'
+  max_epochs: 200
+  precision: 32
+  num_nodes: 1
+  devices: 1
+  strategy: 'ddp'
+  log_every_n_steps: 50
+  limit_val_batches: 5
+  val_check_interval: 1.0
+  num_sanity_val_steps: 1
+  detect_anomaly: False
+  default_root_dir: 'vqvae/logs/recon/train_npz_v2'
+
+exp_params:
+  pretrained_solid_model_path: 'vqvae/logs/vqvae_solid_npz/lightning_logs/version_0/checkpoints/last-model-epoch=21.ckpt'
+  pretrained_face_model_path: 'vqvae/logs/vqvae_face_npz/lightning_logs/version_0/checkpoints/last-model-epoch=21.ckpt'
+  

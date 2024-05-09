@@ -10,7 +10,7 @@ from vae_model import VAE3D
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', type=str, default='configs/vae.yaml')
+parser.add_argument('--config', type=str, default='vae/configs/train_solid.yaml')
 args = parser.parse_args()
 
 with open(args.config, 'r') as f:
@@ -21,18 +21,18 @@ seed_everything(config['trainer_params']['manual_seed'], True)
 model = VAE3D(**config['model_params'])
 experiment = VAEExperiment(config['exp_params'], model)
 
-train_dataset = VoxelDataset(config['data_params'], 'train')
+train_dataset = VoxelDataset(config['data_params']['train'])
 train_dataloader = torch.utils.data.DataLoader(
-    train_dataset, batch_size=config['data_params']['train_batch_size'], 
-    shuffle=True, num_workers=config['data_params']['num_workers'])
+    train_dataset, batch_size=config['data_params']['train']['batch_size'], 
+    shuffle=True, num_workers=config['data_params']['train']['num_workers'])
 
-val_dataset = VoxelDataset(config['data_params'], 'train')
+val_dataset = VoxelDataset(config['data_params']['val'])
 val_dataloader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=config['data_params']['val_batch_size'], 
-    shuffle=True, num_workers=config['data_params']['num_workers'])
+    val_dataset, batch_size=config['data_params']['val']['batch_size'], 
+    shuffle=True, num_workers=config['data_params']['val']['num_workers'])
 
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    save_top_k=2, monitor='val_loss', mode='min', 
+    save_top_k=1, monitor='val_loss', mode='min', 
     save_last=True, filename='{epoch}-loss={train_loss:.4f}')
 
 checkpoint_callback_last = pl.callbacks.ModelCheckpoint(

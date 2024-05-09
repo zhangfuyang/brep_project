@@ -5,6 +5,7 @@ import pytorch_lightning as pl
 import numpy as np
 import math
 import trimesh
+import mcubes
 
 class Experiment(pl.LightningModule):
     def __init__(self, config, model, data_size, code_dim):
@@ -34,7 +35,7 @@ class Experiment(pl.LightningModule):
 
         pred = self.model(points, latent_code) # BNx1
 
-        recon_loss = F.mse_loss(pred[:,0], dist, reduction='sum') / N
+        recon_loss = F.l1_loss(pred[:,0], dist, reduction='sum') / N
         self.log('recon_loss', recon_loss, rank_zero_only=True, prog_bar=True)
         
         norm_loss = torch.sum(torch.norm(latent_code, dim=1)) / N
@@ -101,5 +102,30 @@ class Experiment(pl.LightningModule):
         scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=self.config['lr_decay'])
         return {'optimizer': optimizer, 'lr_scheduler': scheduler}
 
-            
-    
+    def test_step(self, batch, batch_idx):
+        points, dist, code_id = batch
+        B = points.shape[0]
+        N = points.shape[1]
+        # points: BxNx3   dist: BxN   code_id: B
+        for i in range(B):
+            save_name = os.path.join(self.logger.log_dir, 'images', 
+                                    f'{self.global_step}_{i}_gt.obj')
+            self.render_(points[i], dist[i], save_name)
+        
+        reso = 64
+        line = torch.linspace(-1, 1, reso)
+        xyz = torch.stack(torch.meshgrid(line, line, line), -1)
+        points = xyz.reshape(-1, 3) # reso^3, 3
+        points = points.to(dist.device)
+
+        for i in range(B):
+            latent_code = self.latent_code(code_id[i:i+1]) # 1xlatent_code_size
+            latent_code = latent_code.expand(points.shape[0], -1)
+            pred = self.model(points, latent_code) # reso^3x1
+            pred = pred[:,0].reshape(reso, reso, reso)
+            pred = pred.cpu().numpy() # reso, reso, reso
+
+            vertices, triangles = mcubes.marching_cubes(pred, 0)
+            save_name = os.path.join(self.logger.log_dir, 'images', 
+                                    f'{self.global_step}_{i}_pred.obj')
+            mcubes.export_obj(vertices, triangles, save_name)
