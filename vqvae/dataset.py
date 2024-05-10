@@ -9,6 +9,11 @@ class VoxelDataset(torch.utils.data.Dataset):
         self.data_config = data_config
         if self.data_config['data_path'].endswith('.pkl'):
             self.data_list = pickle.load(open(data_config['data_path'], 'rb'))
+        elif self.data_config['data_path'].endswith('.txt'):
+            self.data_list = []
+            with open(data_config['data_path'], 'r') as f:
+                for line in f:
+                    self.data_list.append(line.strip())
         else:
             data_format = self.data_config['data_format']
             self.data_list = glob.glob(os.path.join(data_config['data_path'], '*', f'*.{data_format}'))
@@ -44,6 +49,7 @@ class VoxelDataset(torch.utils.data.Dataset):
         
         x = torch.from_numpy(voxel).float()
         x = torch.clamp(x, -self.data_config['clip_value'], self.data_config['clip_value'])
+        x = x * self.data_config['scale_factor']
         x = x[None] # 1, N,N,N
         return x, data_path
 
@@ -168,10 +174,10 @@ class ReconDataset(torch.utils.data.Dataset):
 if __name__ == "__main__":
     import yaml
     import mcubes
-    with open('vqvae/configs/recon.yaml', 'r') as f:
+    with open('vqvae/configs/vqvae_voxel_sdf.yaml', 'r') as f:
         config = yaml.safe_load(f)
     
-    train_dataset = ReconDataset(config['data_params']['train'])
+    train_dataset = VoxelDataset(config['data_params']['train'])
     print(len(train_dataset))
     bad_list = []
     for idx, data in enumerate(train_dataset):

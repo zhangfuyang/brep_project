@@ -1,23 +1,25 @@
 data_params:
   train:
-    data_path: 'Data/processed/deepcad_subset/train' #'train_valid_data_list.pkl'
+    data_path: 'data_list_path.txt' #'train_valid_data_list.pkl'
     data_key: 'voxel_sdf'
     filter_data_path: null #'Data/processed/deepcad_subset/train_bad_list.pkl'
     clip_value: 0.1
+    scale_factor: 10
     data_format: 'npz' # 'pkl'
   val:
-    data_path: 'Data/processed/deepcad_subset/val' # 'val_valid_data_list.pkl'
+    data_path: 'data_list_path.txt' # 'val_valid_data_list.pkl'
     data_key: 'voxel_sdf'
     filter_data_path: null #'Data/processed/deepcad_subset/val_bad_list.pkl'
     clip_value: 0.1
+    scale_factor: 10
     data_format: 'npz' # 'pkl'
-  batch_size: 40
+  batch_size: 16
   num_workers: 32
 
 model_params:
   n_channels: 1
   with_conv: True
-  num_res_blocks: 2
+  num_res_blocks: 3
   channels: [1,2,4,4] # downsample 3 time
   voxel_size: 64
   ch: 32
@@ -31,11 +33,11 @@ trainer_params:
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 1
+  devices: 4
   strategy: 'ddp'
   log_every_n_steps: 50
   limit_val_batches: 5
-  val_check_interval: 1.0
+  val_check_interval: 5000
   num_sanity_val_steps: 1
   detect_anomaly: False
   default_root_dir: 'vqvae/logs/vqvae_solid_npz'
@@ -46,7 +48,7 @@ exp_params:
   lr_decay: 0.95
   vq_weight: 0.25
   recon_loss_type: "l2" # l1 or l2
-  pretrained_model_path: null #'vqvae/logs/vqvae_voxel_sdf_codebook_dim_4_clip/lightning_logs/version_0/checkpoints/last-model-epoch=93.ckpt'
+  pretrained_model_path: 'vqvae/logs/vqvae_solid_npz/lightning_logs/version_0/checkpoints/last-model-epoch=01.ckpt'
   phase: "sdf" # sdf or face
 
   

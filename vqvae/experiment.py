@@ -67,7 +67,7 @@ class VAEExperiment(pl.LightningModule):
             vertices, triangles = mcubes.marching_cubes(voxel, 0)
             mcubes.export_obj(vertices, triangles, filename)
         elif phase == 'face':
-            points = np.where(voxel < 0.02)
+            points = np.where(voxel < 0.15)
             points = np.array(points).T
             pointcloud = trimesh.points.PointCloud(points)
             # save

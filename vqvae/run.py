@@ -10,7 +10,7 @@ from vae_model import VQVAE3D
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', type=str, default='vqvae/configs/vqvae_voxel_sdf.yaml')
+parser.add_argument('--config', type=str, default='vqvae/configs/vqvae_voxel_face_dist.yaml')
 args = parser.parse_args()
 
 with open(args.config, 'r') as f:
@@ -33,7 +33,7 @@ train_dataloader = torch.utils.data.DataLoader(
 
 val_dataset = VoxelDataset(config['data_params']['val'])
 val_dataloader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=12,
+    val_dataset, batch_size=5,
     shuffle=True, num_workers=config['data_params']['num_workers'])
 
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
