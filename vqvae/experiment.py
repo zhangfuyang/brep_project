@@ -11,12 +11,14 @@ class VAEExperiment(pl.LightningModule):
         super(VAEExperiment, self).__init__()
         self.config = config
         self.vae_model = vae_model
+        self.codebook_utilization = torch.zeros(vae_model.codebook_size)
     
     def training_step(self, batch, batch_idx):
         batch, data_name = batch[0], batch[1]
         results = self.vae_model(batch, self.config['vq_weight'])
         recon = results[0]
         vq_loss = results[1]
+        code_indices = results[2]
 
         loss_dict = self.vae_model.loss_function(
             recon, batch, vq_loss, **self.config)
@@ -43,6 +45,13 @@ class VAEExperiment(pl.LightningModule):
         results = self.vae_model(batch, self.config['vq_weight'])
         recon = results[0]
         vq_loss = results[1]
+        code_indices = results[2]
+
+        if self.config['adaptive_training']:
+            self.codebook_utilization = self.codebook_utilization.to(recon.device)
+            uniques, counts = torch.unique(code_indices, return_counts=True)
+            for code_id, count in zip(uniques, counts):
+                self.codebook_utilization[code_id] += count.item()
 
         loss_dict = self.vae_model.loss_function(recon, batch, vq_loss, **self.config)
         loss = loss_dict['loss']
@@ -57,6 +66,19 @@ class VAEExperiment(pl.LightningModule):
                     save_name = os.path.join(self.logger.log_dir, 'images', 
                                              f'{self.global_step}_recon_{i}.obj')
                     self.render_mesh(recon[i][0], save_name)
+
+    def on_validation_epoch_end(self):
+        if self.config['adaptive_training']:
+            # reset non-used codebook
+            ### sync codebook utilization from all gpus
+            torch.distributed.all_reduce(self.codebook_utilization, op=torch.distributed.ReduceOp.SUM)
+
+            reset_idx = torch.where(self.codebook_utilization < 1)[0]
+            self.vae_model.reset_codebook(reset_idx)
+            
+            # reset utilization
+            self.codebook_utilization[:] = 0
+
 
     def render_mesh(self, voxel, filename):
         os.makedirs(os.path.dirname(filename), exist_ok=True)

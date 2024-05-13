@@ -13,7 +13,7 @@ data_params:
     clip_value: 0.1
     scale_factor: 10
     data_format: 'npz' # 'pkl'
-  batch_size: 16
+  batch_size: 40
   num_workers: 32
 
 model_params:
@@ -32,11 +32,11 @@ trainer_params:
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 1
+  devices: 3
   strategy: 'ddp'
   log_every_n_steps: 50
   limit_val_batches: 5
-  val_check_interval: 5000
+  val_check_interval: 3000
   num_sanity_val_steps: 1
   detect_anomaly: False
   default_root_dir: 'vqvae/logs/vqvae_face_npz'

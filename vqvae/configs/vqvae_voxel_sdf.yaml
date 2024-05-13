@@ -13,34 +13,33 @@ data_params:
     clip_value: 0.1
     scale_factor: 10
     data_format: 'npz' # 'pkl'
-  batch_size: 16
+  batch_size: 40
   num_workers: 32
 
 model_params:
   n_channels: 1
   with_conv: True
   num_res_blocks: 3
-  channels: [1,2,4,4] # downsample 3 time
+  channels: [1,2,4,4,8,8] # downsample 3 time
   voxel_size: 64
   ch: 32
   codebook_dim: 4
   codebook_size: 8192
-  use_kl: True
 
 trainer_params:
-  manual_seed: 44
+  manual_seed: 12345
   accelerator: 'gpu'
   max_epochs: 200
   precision: 32
   num_nodes: 1
-  devices: 4
+  devices: 1
   strategy: 'ddp'
   log_every_n_steps: 50
-  limit_val_batches: 5
-  val_check_interval: 5000
+  limit_val_batches: 30
+  val_check_interval: 3000
   num_sanity_val_steps: 1
   detect_anomaly: False
-  default_root_dir: 'vqvae/logs/vqvae_solid_npz'
+  default_root_dir: 'vqvae/logs/vqvae_solid_npz_adaptive'
 
 exp_params:
   lr: 0.0001
@@ -48,7 +47,8 @@ exp_params:
   lr_decay: 0.95
   vq_weight: 0.25
   recon_loss_type: "l2" # l1 or l2
-  pretrained_model_path: 'vqvae/logs/vqvae_solid_npz/lightning_logs/version_0/checkpoints/last-model-epoch=01.ckpt'
+  pretrained_model_path: 'vqvae/logs/vqvae_solid_npz_adaptive/lightning_logs/version_0/checkpoints/last.ckpt'
   phase: "sdf" # sdf or face
+  adaptive_training: True
 
   

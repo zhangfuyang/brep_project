@@ -10,13 +10,12 @@ from vae_model import VQVAE3D
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', type=str, default='vqvae/configs/vqvae_voxel_face_dist.yaml')
+parser.add_argument('--config', type=str, default='vqvae/configs/vqvae_voxel_sdf.yaml')
 args = parser.parse_args()
 
 with open(args.config, 'r') as f:
     config = yaml.safe_load(f)
 
-seed_everything(config['trainer_params']['manual_seed'], True)
 
 model = VQVAE3D(**config['model_params'])
 experiment = VAEExperiment(config['exp_params'], model)
@@ -33,7 +32,7 @@ train_dataloader = torch.utils.data.DataLoader(
 
 val_dataset = VoxelDataset(config['data_params']['val'])
 val_dataloader = torch.utils.data.DataLoader(
-    val_dataset, batch_size=5,
+    val_dataset, batch_size=128,
     shuffle=True, num_workers=config['data_params']['num_workers'])
 
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
@@ -44,6 +43,8 @@ checkpoint_callback_last = pl.callbacks.ModelCheckpoint(
     filename='last-model-{epoch:02d}',
     save_last=True,
 )
+
+seed_everything(config['trainer_params']['manual_seed'], True)
 
 trainer = pl.Trainer(
     accelerator=config['trainer_params']['accelerator'], max_epochs=config['trainer_params']['max_epochs'],

@@ -9,7 +9,8 @@ class VectorQuantizer(nn.Module):
         self.K = codebook_size
         self.D = embedding_dim
         self.embedding = nn.Embedding(self.K, self.D)
-        self.embedding.weight.data.uniform_(-1/self.K, 1/self.K)
+        #self.embedding.weight.data.uniform_(-1/self.K, 1/self.K)
+        return
     
     def forward(self, latents, vq_weight):
         latents = latents.permute(0, 2, 3, 4, 1).contiguous() # (B, C, H, W, D) -> (B, H, W, D, C)
@@ -63,6 +64,12 @@ class VectorQuantizer(nn.Module):
 
         return encoding_indices[...,0]
 
+    def reset_codebook(self, reset_idx):
+        self.embedding.weight.data[reset_idx] = torch.randn_like(self.embedding.weight.data[reset_idx])
+        # sync the weight to all gpus
+        torch.distributed.broadcast(self.embedding.weight.data, 0)
+        torch.distributed.barrier()
+        return
 
 
 class VQVAE3D(nn.Module):
@@ -138,7 +145,8 @@ class VQVAE3D(nn.Module):
     def forward(self, x, vq_weight):
         latent = self.encode(x)
         quantized_inputs, vq_loss = self.vq_layer(latent, vq_weight)
-        return self.decode(quantized_inputs), vq_loss
+        code_indices = self.vq_layer.get_codebook_indices(latent)
+        return self.decode(quantized_inputs), vq_loss, code_indices
     
     def quantize_decode(self, latent):
         quantized_inputs, _ = self.vq_layer(latent, 0)
@@ -149,19 +157,22 @@ class VQVAE3D(nn.Module):
         return self.vq_layer.get_codebook_indices(latent)
 
     def loss_function(self, recon_x, x, vq_loss, **kwargs):
-        #recons_loss = F.mse_loss(recon_x, x)
-        if kwargs['recon_loss_type'] == 'l1':
-            diff = torch.abs(recon_x - x)
-        elif kwargs['recon_loss_type'] == 'l2':
-            diff = (recon_x - x)**2
-        weight = 1 - torch.abs(x)
-        recons_loss = torch.mean(diff * weight)
+        recons_loss = F.mse_loss(recon_x, x)
+        #if kwargs['recon_loss_type'] == 'l1':
+        #    diff = torch.abs(recon_x - x)
+        #elif kwargs['recon_loss_type'] == 'l2':
+        #    diff = (recon_x - x)**2
+        #weight = 1 - torch.abs(x)
+        #recons_loss = torch.mean(diff * weight)
 
         loss = recons_loss + vq_loss
 
         return {'loss': loss, 'Reconstruction_Loss':recons_loss.detach(), 'VQ_Loss':vq_loss}
     
-    
+    def reset_codebook(self, reset_idx):
+        self.vq_layer.reset_codebook(reset_idx)    
+
+
 class Mid(nn.Module):
     def __init__(self, in_channels, out_channels, num_res_blocks=2):
         super().__init__()
