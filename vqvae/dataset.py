@@ -59,11 +59,16 @@ class ReconDataset(torch.utils.data.Dataset):
         self.data_config = data_config
         if self.data_config['data_path'].endswith('.pkl'):
             self.data_list = pickle.load(open(data_config['data_path'], 'rb'))
+        elif self.data_config['data_path'].endswith('.txt'):
+            self.data_list = []
+            with open(data_config['data_path'], 'r') as f:
+                for line in f:
+                    self.data_list.append(line.strip())
         else:
             data_format = self.data_config['data_format']
             self.data_list = glob.glob(os.path.join(data_config['data_path'], '*', f'*.{data_format}'))
             self.data_list = sorted(self.data_list)
-        
+
         if self.data_config['filter_data_path'] is not None:
             filter_list = pickle.load(open(self.data_config['filter_data_path'], 'rb'))
             filter_list = [x.split('/')[-2]+'_'+x.split('/')[-1].split('.')[0] for x in filter_list]
@@ -159,6 +164,8 @@ class ReconDataset(torch.utils.data.Dataset):
         faces_voxel = torch.from_numpy(faces_voxel).float()
         solid_voxel = torch.clamp(solid_voxel, -self.data_config['clip_value'], self.data_config['clip_value'])
         faces_voxel = torch.clamp(faces_voxel, -self.data_config['clip_value'], self.data_config['clip_value'])
+        solid_voxel = solid_voxel * self.data_config['scale_factor']
+        faces_voxel = faces_voxel * self.data_config['scale_factor']
 
         solid_voxel = solid_voxel.unsqueeze(0) # 1, N,N,N
         faces_voxel = faces_voxel.permute(3, 0, 1, 2) # M, N,N,N

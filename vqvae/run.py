@@ -10,7 +10,7 @@ from vae_model import VQVAE3D
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--config', type=str, default='vqvae/configs/vqvae_voxel_sdf.yaml')
+parser.add_argument('--config', type=str, default='vqvae/configs/vqvae_voxel_face_dist.yaml')
 args = parser.parse_args()
 
 with open(args.config, 'r') as f:
