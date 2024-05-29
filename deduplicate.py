@@ -3,11 +3,11 @@ import pickle
 import argparse
 from tqdm import tqdm
 from hashlib import sha256
+import glob
 from convert_utils import *
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--bit",  type=int, help='Deduplicate precision', default=6)
-parser.add_argument("--data_list", type=str, help="Data list path", default='data_list_path.txt')
 parser.add_argument("--output", type=str, help="Output file path", default='deduplicated_data_path.txt')
 args = parser.parse_args()
 
@@ -15,12 +15,13 @@ args = parser.parse_args()
 train_path = []
 unique_hash = set()
 total = 0
+OUTPUT = args.output
 
 # load data list
-with open(args.data_list, "r") as file:
-    train = file.readlines()
+train = glob.glob('Data/brepgen/deepcad_parsed/*/*.pkl')
 
 for path_idx, path in tqdm(enumerate(train)):
+    solid_uid = path.split('/')[-2]+'_'+path.split('/')[-1].split('.')[0]
     path = path.strip()
     total += 1
 
@@ -42,7 +43,7 @@ for path_idx, path in tqdm(enumerate(train)):
     prev_len = len(unique_hash)
     unique_hash.add(data_hash)  
     if prev_len < len(unique_hash):
-        train_path.append(uid)
+        train_path.append(solid_uid)
     else:
         continue
         
@@ -50,10 +51,6 @@ for path_idx, path in tqdm(enumerate(train)):
         print(len(unique_hash)/total)
 
 # save data 
-data_path = {
-    'train':train_path,
-    'val':val_path,
-    'test':test_path,
-}
-with open(OUTPUT, "wb") as tf:
-    pickle.dump(data_path, tf)
+with open(OUTPUT, 'w') as f:
+    for path in train_path:
+        f.write(path+'\n')
